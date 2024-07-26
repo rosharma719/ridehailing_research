@@ -36,8 +36,8 @@ def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_ed
 
 # Poisson Arrivals and Exponential Sojourn Times
 
-def generate_poisson_arrivals(rate, length, num_nodes):
-    return np.random.poisson(rate, (length, num_nodes))
+def generate_poisson_arrivals(rate, shape):
+    return np.random.poisson(rate, shape)
 
 def generate_exponential_sojourn_times(rate, length):
     return np.random.exponential(1 / rate, length)
