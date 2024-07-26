@@ -73,9 +73,3 @@ class CCM:
         plt.ylabel('X(t-1)')
         plt.show()
 
-# Sample Data
-X = np.random.rand(500)
-Y = np.random.rand(500)
-
-ccm = CCM(X, Y, tau=1, E=2, L=500)
-ccm.visualize_cross_mapping()
