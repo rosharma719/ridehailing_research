@@ -2,6 +2,8 @@ import numpy as np
 import networkx as nx
 import random
 import pandas as pd
+from scipy.optimize import linear_sum_assignment
+
 
 # CITY LAYOUT AND GRAPH FUNCTIONS
 
@@ -106,3 +108,68 @@ def create_status_dataframe(riders, drivers):
                 'Sojourn Time': driver.sojourn_time
             })
     return pd.DataFrame(data)
+
+
+def optimal_offline_benchmark(riders, drivers, adj_matrix):
+    G = nx.from_numpy_array(adj_matrix)
+    path_lengths = dict(nx.all_pairs_dijkstra_path_length(G))
+
+    all_riders = []
+    all_drivers = []
+
+    # Collect all riders and drivers
+    for t, rider_list in riders.items():
+        all_riders.extend(rider_list)
+    for t, driver_list in drivers.items():
+        all_drivers.extend(driver_list)
+
+    # Create cost matrix
+    cost_matrix = np.full((len(all_riders), len(all_drivers)), np.inf)
+
+    for i, rider in enumerate(all_riders):
+        for j, driver in enumerate(all_drivers):
+            rider_pos = rider.location[1]
+            driver_pos = driver.location[1]
+            travel_cost = path_lengths[rider_pos][driver_pos]
+            cost_matrix[i, j] = travel_cost
+
+    # Solve the assignment problem
+    row_ind, col_ind = linear_sum_assignment(cost_matrix)
+
+    matched_riders = set()
+    matched_drivers = set()
+
+    for r, d in zip(row_ind, col_ind):
+        if cost_matrix[r, d] < np.inf:  # Valid match
+            matched_riders.add(all_riders[r])
+            matched_drivers.add(all_drivers[d])
+
+    unmatched_riders = set(all_riders) - matched_riders
+    unmatched_drivers = set(all_drivers) - matched_drivers
+
+    # Calculate total wait time for matched riders and drivers
+    total_wait_time_riders = sum(rider.sojourn_time for rider in matched_riders)
+    total_wait_time_drivers = sum(driver.sojourn_time for driver in matched_drivers)
+
+    # Summary statistics
+    total_riders = len(all_riders)
+    total_drivers = len(all_drivers)
+    matched_riders_count = len(matched_riders)
+    unmatched_riders_count = len(unmatched_riders)
+    matched_drivers_count = len(matched_drivers)
+    unmatched_drivers_count = len(unmatched_drivers)
+    average_wait_time_riders = total_wait_time_riders / matched_riders_count if matched_riders_count else 0
+    average_wait_time_drivers = total_wait_time_drivers / matched_drivers_count if matched_drivers_count else 0
+
+    # Print results
+    print("Summary Statistics:")
+    print(f"Total Riders: {total_riders}")
+    print(f"Matched Riders: {matched_riders_count}")
+    print(f"Unmatched Riders: {unmatched_riders_count}")
+    print(f"Total Drivers: {total_drivers}")
+    print(f"Matched Drivers: {matched_drivers_count}")
+    print(f"Unmatched Drivers: {unmatched_drivers_count}")
+    print(f"Average Wait Time for Riders: {average_wait_time_riders:.2f}")
+    print(f"Average Wait Time for Drivers: {average_wait_time_drivers:.2f}")
+
+    return matched_riders, unmatched_riders, matched_drivers, unmatched_drivers
