@@ -154,29 +154,28 @@ def create_status_dataframe(riders, drivers):
 
 # Example usage
 
-num_nodes = 10  # Define the number of nodes in the grid
-skip_prob = 0.15  # Probability of skipping an edge between nodes
-extra_edges = 0.15  # Additional edges as a fraction of total nodes
+# num_nodes = 10  # Define the number of nodes in the grid
+# skip_prob = 0.15  # Probability of skipping an edge between nodes
+# extra_edges = 0.15  # Additional edges as a fraction of total nodes
 
-adj_matrix = generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob, extra_edges)
+# adj_matrix = generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob, extra_edges)
 
-length = 100  # Duration 
-mean = 10  # Mean demand per node 
-std_dev = 3  # Demand stdev
-amplitude_range = (0.5, 1.5)  # Amplitude demand range
-period_range = (10, 50)  # Range of demand periods
-num_periods_range = (3, 10)  # Range for number of periods within length
+# length = 100  # Duration 
+# mean = 10  # Mean demand per node 
+# std_dev = 3  # Demand stdev
+# amplitude_range = (0.5, 1.5)  # Amplitude demand range
+# period_range = (10, 50)  # Range of demand periods
+# num_periods_range = (3, 10)  # Range for number of periods within length
 
-pickup_series = generate_seasonal_demand(length, num_nodes, mean, std_dev, amplitude_range, period_range, num_periods_range)
-dropoffs = generate_random_dropoffs(num_nodes, pickup_series)
+# pickup_series = generate_seasonal_demand(length, num_nodes, mean, std_dev, amplitude_range, period_range, num_periods_range)
+# dropoffs = generate_random_dropoffs(num_nodes, pickup_series)
 
-driver_mean = 10 
-driver_std_dev = 2 
-drivers_series = generate_driver_series(num_nodes, length, driver_mean, driver_std_dev)
+# driver_mean = 10 
+# driver_std_dev = 2 
+# drivers_series = generate_driver_series(num_nodes, length, driver_mean, driver_std_dev)
 
-riders, drivers = create_riders_and_drivers(pickup_series, dropoffs, drivers_series)
-status_df = create_status_dataframe(riders, drivers)
+# riders, drivers = create_riders_and_drivers(pickup_series, dropoffs, drivers_series)
+# status_df = create_status_dataframe(riders, drivers)
 
 # Display the dataframe
-print(status_df.head())
-
+# print(status_df.head())

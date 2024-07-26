@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 # Load the data
-data = pd.read_csv('C:\\Users\\kragg\\OneDrive\\Desktop\\uber.csv')
+data = pd.read_csv('C:\\Users\\kragg\\OneDrive\\Documents/Code/Data\\uber.csv')
 
 # Preprocess the data
 data['pickup_datetime'] = pd.to_datetime(data['pickup_datetime'])
