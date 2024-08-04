@@ -13,6 +13,9 @@ uber_data = pd.read_csv(file_path)
 # Convert pickup_datetime to datetime object
 uber_data['pickup_datetime'] = pd.to_datetime(uber_data['pickup_datetime'])
 
+# Remove duplicates
+uber_data = uber_data.drop_duplicates()
+
 # Scale the relevant features
 scaler = StandardScaler()
 uber_data[['fare_amount', 'distance_km', 'time_of_day', 'hour_of_day']] = scaler.fit_transform(
@@ -25,14 +28,22 @@ uber_data_sampled = uber_data.sample(n=5000, random_state=1)  # Sample 5000 rows
 X = uber_data_sampled['distance_km'].values
 Y = uber_data_sampled['fare_amount'].values
 
-# Split the data into training, validation, and testing sets
-X_train, X_temp, Y_train, Y_temp = train_test_split(X, Y, test_size=0.4, random_state=1)
-X_val, X_test, Y_val, Y_test = train_test_split(X_temp, Y_temp, test_size=0.5, random_state=1)
+# Generate indices for train, validation, and test sets
+indices = np.arange(len(X))
+X_train_indices, X_temp_indices, Y_train_indices, Y_temp_indices = train_test_split(
+    indices, indices, test_size=0.4, random_state=1)
+X_val_indices, X_test_indices, Y_val_indices, Y_test_indices = train_test_split(
+    X_temp_indices, Y_temp_indices, test_size=0.5, random_state=1)
 
-# Check for overlap
-assert len(set(X_train).intersection(X_val)) == 0, "Overlap detected between training and validation sets!"
-assert len(set(X_train).intersection(X_test)) == 0, "Overlap detected between training and test sets!"
-assert len(set(X_val).intersection(X_test)) == 0, "Overlap detected between validation and test sets!"
+# Extract train, validation, and test sets based on indices
+X_train, Y_train = X[X_train_indices], Y[X_train_indices]
+X_val, Y_val = X[X_val_indices], Y[X_val_indices]
+X_test, Y_test = X[X_test_indices], Y[Y_test_indices]
+
+# Check for overlap by comparing indices
+assert len(set(X_train_indices).intersection(X_val_indices)) == 0, "Overlap detected between training and validation sets!"
+assert len(set(X_train_indices).intersection(X_test_indices)) == 0, "Overlap detected between training and test sets!"
+assert len(set(X_val_indices).intersection(X_test_indices)) == 0, "Overlap detected between validation and test sets!"
 
 # Applying CCM to the training data
 ccm = CCM(X_train, Y_train, tau=1, E=2, L=len(X_train))

@@ -1,7 +1,7 @@
+# Class definition for CCM
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import distance
-from scipy.stats import pearsonr
 
 class CCM:
     def __init__(self, X, Y, tau=1, E=2, L=500):
@@ -12,18 +12,6 @@ class CCM:
         self.L = L
         self.My = self.shadow_manifold(self.Y)
         self.t_steps, self.dists = self.get_distances(self.My)
-
-    def test_ccm(ccm, X_test, Y_test):
-        predictions = []
-        for t in range(len(X_test)):
-            X_true, X_hat = ccm.predict(t)
-            if not np.isnan(X_true) and not np.isnan(X_hat):
-                predictions.append((X_true, X_hat))
-        X_true_array = np.array([p[0] for p in predictions])
-        X_hat_array = np.array([p[1] for p in predictions])
-        mse_test = np.mean((X_true_array - X_hat_array) ** 2)
-        return mse_test
-
 
     def shadow_manifold(self, X):
         X = X[:self.L]
@@ -71,7 +59,6 @@ class CCM:
         X_hat = (w * X_cor).sum()
         return X_true, X_hat
 
-
     def causality(self):
         X_true_list = []
         X_hat_list = []
@@ -98,4 +85,13 @@ class CCM:
         plt.title('Cross Mapping')
         plt.xlabel('X(t)')
         plt.ylabel('X(t-1)')
+        plt.show()
+
+        # Visualize entire shadow manifold
+        plt.figure(figsize=(12, 6))
+        for t, coords in self.My.items():
+            plt.scatter(coords[0], coords[1], c='b', marker='s')
+        plt.title('Shadow Manifold for Y')
+        plt.xlabel('Y(t)')
+        plt.ylabel('Y(t-1)')
         plt.show()
