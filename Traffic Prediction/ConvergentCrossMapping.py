@@ -25,7 +25,7 @@ class CCM:
         t_vec = [(k, v) for k, v in Mx.items()]
         t_steps = np.array([i[0] for i in t_vec])
         vecs = np.array([i[1] for i in t_vec])
-        dists = distance.cdist(vecs, vecs, metric='euclidean')
+        dists = distance.cdist(vecs, vecs, metric='euclidean')  # Consider experimenting with other metrics
         return t_steps, dists
 
     def get_nearest_distances(self, t, t_steps, dists):
@@ -39,17 +39,14 @@ class CCM:
     def predict(self, t):
         t_ind = np.where(self.t_steps == t)
         if t_ind[0].size == 0:
-            # Handle case where t is not found in t_steps
             return np.nan, np.nan
 
         dist_t = self.dists[t_ind].squeeze()
         if dist_t.size == 0:
-            # Handle case where distances array is empty
             return np.nan, np.nan
 
         nearest_timesteps, nearest_distances = self.get_nearest_distances(t, self.t_steps, self.dists)
         if nearest_distances.size == 0:
-            # Handle case where nearest distances array is empty
             return np.nan, np.nan
 
         u = np.exp(-nearest_distances / np.max([1e-6, nearest_distances[0]]))

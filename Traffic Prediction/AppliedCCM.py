@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from ConvergentCrossMapping import CCM  # Ensure the class is imported correctly
+from scipy.stats import pearsonr
 
 # Load the data
 file_path = "C:/Users/kragg/OneDrive/Documents/Code/Data/uber.csv"
@@ -37,7 +38,7 @@ X_val_indices, X_test_indices, Y_val_indices, Y_test_indices = train_test_split(
 
 # Extract train, validation, and test sets based on indices
 X_train, Y_train = X[X_train_indices], Y[X_train_indices]
-X_val, Y_val = X[X_val_indices], Y[X_val_indices]
+X_val, Y_val = X[X_val_indices], Y[Y_val_indices]
 X_test, Y_test = X[X_test_indices], Y[Y_test_indices]
 
 # Check for overlap by comparing indices
@@ -60,14 +61,18 @@ def test_ccm(ccm, X_test, Y_test):
     X_true_array = np.array([p[0] for p in predictions])
     X_hat_array = np.array([p[1] for p in predictions])
     mse_test = np.mean((X_true_array - X_hat_array) ** 2)
-    return mse_test
+    return X_true_array, X_hat_array, mse_test
 
 # Validate the model on the validation data
-mse_val = test_ccm(ccm, X_val, Y_val)
+X_val_true, X_val_hat, mse_val = test_ccm(ccm, X_val, Y_val)
 print(f'Validation Mean Squared Error (causality measure): {mse_val}')
+pearson_corr_val, _ = pearsonr(X_val_true, X_val_hat)
+print(f'Validation Pearson Correlation: {pearson_corr_val}')
 
 # Test the model on the testing data
-mse_test = test_ccm(ccm, X_test, Y_test)
+X_test_true, X_test_hat, mse_test = test_ccm(ccm, X_test, Y_test)
 print(f'Testing Mean Squared Error (causality measure): {mse_test}')
+pearson_corr_test, _ = pearsonr(X_test_true, X_test_hat)
+print(f'Testing Pearson Correlation: {pearson_corr_test}')
 
 ccm.visualize_cross_mapping()
