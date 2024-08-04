@@ -25,15 +25,21 @@ uber_data_sampled = uber_data.sample(n=5000, random_state=1)  # Sample 5000 rows
 X = uber_data_sampled['distance_km'].values
 Y = uber_data_sampled['fare_amount'].values
 
-# Split the data into training and testing sets
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=1)
+# Split the data into training, validation, and testing sets
+X_train, X_temp, Y_train, Y_temp = train_test_split(X, Y, test_size=0.4, random_state=1)
+X_val, X_test, Y_val, Y_test = train_test_split(X_temp, Y_temp, test_size=0.5, random_state=1)
+
+# Check for overlap
+assert len(set(X_train).intersection(X_val)) == 0, "Overlap detected between training and validation sets!"
+assert len(set(X_train).intersection(X_test)) == 0, "Overlap detected between training and test sets!"
+assert len(set(X_val).intersection(X_test)) == 0, "Overlap detected between validation and test sets!"
 
 # Applying CCM to the training data
 ccm = CCM(X_train, Y_train, tau=1, E=2, L=len(X_train))
 mse_train = ccm.causality()
 print(f'Training Mean Squared Error (causality measure): {mse_train}')
 
-# Test the model on the testing data
+# Define the test_ccm function
 def test_ccm(ccm, X_test, Y_test):
     predictions = []
     for t in range(len(X_test)):
@@ -45,6 +51,11 @@ def test_ccm(ccm, X_test, Y_test):
     mse_test = np.mean((X_true_array - X_hat_array) ** 2)
     return mse_test
 
+# Validate the model on the validation data
+mse_val = test_ccm(ccm, X_val, Y_val)
+print(f'Validation Mean Squared Error (causality measure): {mse_val}')
+
+# Test the model on the testing data
 mse_test = test_ccm(ccm, X_test, Y_test)
 print(f'Testing Mean Squared Error (causality measure): {mse_test}')
 
