@@ -68,10 +68,10 @@ class Driver:
 # Event-Driven System
 
 class Event:
-    def __init__(self, event_time, event_type, obj):
-        self.event_time = event_time
+    def __init__(self, event_type, rider=None, driver=None):
         self.event_type = event_type
-        self.obj = obj
+        self.rider = rider
+        self.driver = driver
 
 class EventQueue:
     def __init__(self):
@@ -86,23 +86,30 @@ class EventQueue:
 
 # Function to create Riders and Drivers from series data
 
-def create_riders_and_drivers(pickup_series, dropoffs, drivers_series, sojourn_times):
-    riders = {}
-    drivers = {}
-    for t in range(len(pickup_series)):
-        riders[t] = []
-        drivers[t] = []
-        for node in range(len(pickup_series[t])):
-            for _ in range(pickup_series[t, node]):
-                dropoff = random.choice(dropoffs.get((t, node), []))
-                patience = random.randint(1, 10)
-                sojourn_time = sojourn_times[t]
-                riders[t].append(Rider(location=(t, node), patience=patience, sojourn_time=sojourn_time))
-            for _ in range(drivers_series[t, node]):
-                patience = random.randint(1, 10)
-                sojourn_time = sojourn_times[t]
-                drivers[t].append(Driver(location=(t, node), patience=patience, sojourn_time=sojourn_time))
-    return riders, drivers
+def create_riders_and_drivers(event_queue, rate_riders, rate_drivers, sojourn_rate, adj_matrix, num_nodes):
+    t = 0
+    while t < num_nodes:
+        # Generate riders and drivers based on the Poisson distribution
+        num_riders = np.random.poisson(rate_riders)
+        num_drivers = np.random.poisson(rate_drivers)
+
+        for _ in range(num_riders):
+            patience = np.random.randint(1, 10)
+            sojourn_time = np.random.exponential(1 / sojourn_rate)
+            rider_location = np.random.randint(0, num_nodes)
+            rider = Rider(location=(t, rider_location), patience=patience, sojourn_time=sojourn_time)
+            event_queue.append(Event(event_type='rider_arrival', rider=rider))
+
+        for _ in range(num_drivers):
+            patience = np.random.randint(1, 10)
+            sojourn_time = np.random.exponential(1 / sojourn_rate)
+            driver_location = np.random.randint(0, num_nodes)
+            driver = Driver(location=(t, driver_location), patience=patience, sojourn_time=sojourn_time)
+            event_queue.append(Event(event_type='driver_arrival', driver=driver))
+
+        t += 1
+
+
 
 # Function to store object status in a dataframe
 
