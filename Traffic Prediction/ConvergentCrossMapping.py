@@ -1,97 +1,81 @@
 import numpy as np
 from scipy.spatial import distance
-import matplotlib.pyplot as plt
+from scipy.stats import pearsonr
 
 class CCM:
-    def __init__(self, X, Y, tau=1, E=2, L=500):
+    def __init__(self, X, Y, tau=1, E=2, L=None):
         self.X = np.array(X)
         self.Y = np.array(Y)
         self.tau = tau
         self.E = E
-        self.L = L
-        self.My = self.shadow_manifold(self.X)
-        self.t_steps, self.dists = self.get_distances(self.My)
+        self.L = L if L else len(X)
+        self.Mx = self._construct_shadow_manifold(self.X)
+        
+        # Debugging info
+        print(f"Initialized CCM")
+        print(f"X shape: {self.X.shape}")
+        print(f"Y shape: {self.Y.shape}")
+        print(f"L: {self.L}")
+        print(f"Shadow Manifold Mx size: {len(self.Mx)}")
 
-    def shadow_manifold(self, X):
-        X = X[:self.L]
-        M = {t: [] for t in range((self.E - 1) * self.tau, self.L)}
-        for t in range((self.E - 1) * self.tau, self.L):
+    def _construct_shadow_manifold(self, data):
+        data_len = len(data)
+        data = data[:self.L]
+        M = {t: [] for t in range((self.E - 1) * self.tau, min(self.L, data_len))}
+        print(f"Constructing shadow manifold with data size: {data.shape} and L={self.L}")
+        for t in range((self.E - 1) * self.tau, min(self.L, data_len)):
             x_lag = []
-            for j in range(X.shape[1]):
-                x_lag.extend([X[t - t2 * self.tau, j] for t2 in range(self.E)])
+            for t2 in range(self.E):
+                x_lag.extend(data[t - t2 * self.tau])  # Flatten the data
             M[t] = x_lag
         return M
 
-    def get_distances(self, Mx):
-        t_vec = [(k, v) for k, v in Mx.items()]
-        t_steps = np.array([i[0] for i in t_vec])
-        vecs = np.array([i[1] for i in t_vec])
-        dists = distance.cdist(vecs, vecs, metric='euclidean')
-        return t_steps, dists
+    def _find_nearest_neighbors(self, t):
+        t_vec = np.array([v for v in self.Mx.values()])
+        dist_matrix = distance.cdist(np.array([self.Mx[t]]), t_vec, metric='euclidean').flatten()
+        nearest_indices = np.argsort(dist_matrix)[1:self.E + 2]
+        return nearest_indices, dist_matrix[nearest_indices]
 
-    def get_nearest_distances(self, t, t_steps, dists):
-        t_ind = np.where(t_steps == t)
-        dist_t = dists[t_ind].squeeze()
-        nearest_inds = np.argsort(dist_t)[1:self.E + 2]
-        nearest_timesteps = t_steps[nearest_inds]
-        nearest_distances = dist_t[nearest_inds]
-        return nearest_timesteps, nearest_distances
+    def _predict_y(self, t):
+        nearest_indices, nearest_distances = self._find_nearest_neighbors(t)
+        weights = np.exp(-nearest_distances / np.max(nearest_distances))
+        weights /= np.sum(weights)
+        y_pred = np.sum(weights * self.Y[nearest_indices])
+        return y_pred
 
-    def predict(self, t):
-        t_ind = np.where(self.t_steps == t)
-        if t_ind[0].size == 0:
-            return np.nan, np.nan
+    def calculate_correlation(self, X_test=None, Y_test=None):
+        if X_test is not None and Y_test is not None:
+            print(f"Calculating correlation with test data")
+            print(f"X_test shape: {X_test.shape}, Y_test shape: {Y_test.shape}")
+            test_shadow_manifold = self._construct_shadow_manifold(X_test)
+            Y_true = []
+            Y_pred = []
+            for t in test_shadow_manifold.keys():
+                Y_true.append(Y_test[t])
+                Y_pred.append(self._predict_y(t))
+        else:
+            print(f"Calculating correlation with training data")
+            Y_true = []
+            Y_pred = []
+            for t in self.Mx.keys():
+                Y_true.append(self.Y[t])
+                Y_pred.append(self._predict_y(t))
+        
+        correlation, _ = pearsonr(Y_true, Y_pred)
+        return correlation
 
-        dist_t = self.dists[t_ind].squeeze()
-        if dist_t.size == 0:
-            return np.nan, np.nan
+class NearestNeighbors:
+    def __init__(self, X_train, Y_train, n_neighbors=5):
+        self.X_train = X_train
+        self.Y_train = Y_train
+        self.n_neighbors = n_neighbors
 
-        nearest_timesteps, nearest_distances = self.get_nearest_distances(t, self.t_steps, self.dists)
-        if nearest_distances.size == 0:
-            return np.nan, np.nan
-
-        u = np.exp(-nearest_distances / np.max([1e-6, nearest_distances[0]]))
-        w = u / np.sum(u)
-
-        X_true = self.X[t]
-        X_cor = np.array(self.X)[nearest_timesteps]
-
-        X_hat = np.dot(w, X_cor)
-        return X_true, X_hat
-
-    def causality(self):
-        X_true_list = []
-        X_hat_list = []
-        for t in list(self.My.keys()):
-            X_true, X_hat = self.predict(t)
-            X_true_list.append(X_true)
-            X_hat_list.append(X_hat)
-        X_true_array = np.array(X_true_list)
-        X_hat_array = np.array(X_hat_list)
-        mse = np.mean((X_true_array - X_hat_array) ** 2)
-        return mse
-
-    def visualize_cross_mapping(self):
-        plt.figure(figsize=(12, 6))
-        for t in np.random.choice(list(self.My.keys()), size=3, replace=False):
-            Ma_t = self.My[t]
-            near_t, _ = self.get_nearest_distances(t, self.t_steps, self.dists)
-            plt.scatter(Ma_t[0], Ma_t[1], c='b', marker='s')
-            for i in range(self.E + 1):
-                B_t = self.My[near_t[i]][0]
-                B_lag = self.My[near_t[i]][1]
-                plt.scatter(B_t, B_lag, c='r', marker='*', s=50)
-                plt.plot([Ma_t[0], B_t], [Ma_t[1], B_lag], c='r', linestyle=':')
-        plt.title('Cross Mapping')
-        plt.xlabel('X(t)')
-        plt.ylabel('X(t-1)')
-        plt.show()
-
-        # Visualize entire shadow manifold
-        plt.figure(figsize=(12, 6))
-        for t, coords in self.My.items():
-            plt.scatter(coords[0], coords[1], c='b', marker='s')
-        plt.title('Shadow Manifold for X')
-        plt.xlabel('X(t)')
-        plt.ylabel('X(t-1)')
-        plt.show()
+    def predict(self, X_test):
+        predictions = []
+        for x in X_test:
+            dists = distance.cdist(self.X_train, [x], metric='euclidean').flatten()
+            nearest_indices = np.argsort(dists)[:self.n_neighbors]
+            nearest_y = self.Y_train[nearest_indices]
+            y_pred = np.mean(nearest_y)
+            predictions.append(y_pred)
+        return np.array(predictions)
