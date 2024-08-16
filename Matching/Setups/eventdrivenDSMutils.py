@@ -2,6 +2,7 @@ import numpy as np
 import networkx as nx
 import random
 import pandas as pd
+import heapq
 from scipy.optimize import linear_sum_assignment
 
 # CITY LAYOUT AND GRAPH FUNCTIONS
@@ -35,236 +36,196 @@ def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_ed
 
     return adjacency_matrix
 
-# Poisson Arrivals and Exponential Sojourn Times
-
-def generate_poisson_arrivals(rate, shape):
-    return np.random.poisson(rate, shape)
-
-def generate_exponential_sojourn_times(rate, length):
-    return np.random.exponential(1 / rate, length)
-
 # Rider and Driver Classes
 
 class Rider:
-    def __init__(self, location, patience, sojourn_time):
+    def __init__(self, arrival_time, location, patience, sojourn_time):
+        self.arrival_time = arrival_time
         self.location = location
         self.patience = patience
         self.sojourn_time = sojourn_time
-
-    def update_patience(self):
-        if self.patience > 0:
-            self.patience -= 1
 
 class Driver:
-    def __init__(self, location, patience, sojourn_time):
+    def __init__(self, arrival_time, location, patience, sojourn_time):
+        self.arrival_time = arrival_time
         self.location = location
         self.patience = patience
         self.sojourn_time = sojourn_time
-
-    def update_patience(self):
-        if self.patience > 0:
-            self.patience -= 1
 
 # Event-Driven System
 
 class Event:
-    def __init__(self, event_type, rider=None, driver=None):
+    def __init__(self, time, event_type, entity=None):
+        self.time = time
         self.event_type = event_type
-        self.rider = rider
-        self.driver = driver
+        self.entity = entity
+
+    def __lt__(self, other):
+        return self.time < other.time
 
 class EventQueue:
     def __init__(self):
-        self.events = []
+        self.queue = []
 
     def add_event(self, event):
-        self.events.append(event)
-        self.events.sort(key=lambda x: x.event_time)
+        heapq.heappush(self.queue, event)
 
     def get_next_event(self):
-        return self.events.pop(0) if self.events else None
+        return heapq.heappop(self.queue) if self.queue else None
 
-# Function to create Riders and Drivers from series data
+# Event Generation
 
-def create_riders_and_drivers(event_queue, rate_riders, rate_drivers, sojourn_rate, adj_matrix, num_nodes):
-    t = 0
-    while t < num_nodes:
-        # Generate riders and drivers based on the Poisson distribution
-        num_riders = np.random.poisson(rate_riders)
-        num_drivers = np.random.poisson(rate_drivers)
-
-        for _ in range(num_riders):
+def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate, num_nodes, simulation_time):
+    current_time = 0
+    while current_time < simulation_time:
+        # Generate rider arrivals
+        next_rider_time = current_time + np.random.exponential(1/rate_riders)
+        if next_rider_time < simulation_time:
             patience = np.random.randint(1, 10)
             sojourn_time = np.random.exponential(1 / sojourn_rate)
             rider_location = np.random.randint(0, num_nodes)
-            rider = Rider(location=(t, rider_location), patience=patience, sojourn_time=sojourn_time)
-            event_queue.append(Event(event_type='rider_arrival', rider=rider))
+            rider = Rider(next_rider_time, rider_location, patience, sojourn_time)
+            event_queue.add_event(Event(next_rider_time, 'rider_arrival', rider))
 
-        for _ in range(num_drivers):
+        # Generate driver arrivals
+        next_driver_time = current_time + np.random.exponential(1/rate_drivers)
+        if next_driver_time < simulation_time:
             patience = np.random.randint(1, 10)
             sojourn_time = np.random.exponential(1 / sojourn_rate)
             driver_location = np.random.randint(0, num_nodes)
-            driver = Driver(location=(t, driver_location), patience=patience, sojourn_time=sojourn_time)
-            event_queue.append(Event(event_type='driver_arrival', driver=driver))
+            driver = Driver(next_driver_time, driver_location, patience, sojourn_time)
+            event_queue.add_event(Event(next_driver_time, 'driver_arrival', driver))
 
-        t += 1
+        current_time = min(next_rider_time, next_driver_time)
 
+# Matching Functions
 
-
-# Function to store object status in a dataframe
-
-def create_status_dataframe(riders, drivers):
-    data = []
-    for t in riders.keys():
-        for rider in riders[t]:
-            data.append({
-                'Time': t,
-                'Type': 'Rider',
-                'Location': rider.location,
-                'Patience': rider.patience,
-                'Sojourn Time': rider.sojourn_time
-            })
-        for driver in drivers[t]:
-            data.append({
-                'Time': t,
-                'Type': 'Driver',
-                'Location': driver.location,
-                'Patience': driver.patience,
-                'Sojourn Time': driver.sojourn_time
-            })
-    return pd.DataFrame(data)
-
-# Function to process events
-
-def process_event(event_queue, riders, drivers, adj_matrix, batch_window):
-    while event_queue.events:
-        event = event_queue.get_next_event()
-        if event.event_type == "rider_arrival":
-            # Perform matching or add to waiting list
-            pass
-        elif event.event_type == "driver_arrival":
-            # Perform matching or add to waiting list
-            pass
-        elif event.event_type == "batch_match":
-            matched_riders, unmatched_riders, matched_drivers, unmatched_drivers = batch_matching(riders, drivers, adj_matrix, batch_window)
-            # Update system with matched and unmatched riders/drivers
-
-def greedy_matching(riders, drivers):
-    matched_riders = set()
-    matched_drivers = set()
-
-    # Perform greedy matching
-    for t in riders.keys():
-        for rider in riders[t]:
-            for driver in drivers[t]:
-                if driver not in matched_drivers and driver.location == rider.location and driver.patience > 0:
-                    matched_riders.add(rider)
-                    matched_drivers.add(driver)
-                    break
-
-    # Calculate unmatched riders and drivers
-    all_riders = set(r for t_list in riders.values() for r in t_list)
-    all_drivers = set(d for t_list in drivers.values() for d in t_list)
-    unmatched_riders = all_riders - matched_riders
-    unmatched_drivers = all_drivers - matched_drivers
-
-    # Calculate total wait time for matched riders and drivers
-    total_wait_time_riders = sum(rider.sojourn_time for rider in matched_riders)
-    total_wait_time_drivers = sum(driver.sojourn_time for driver in matched_drivers)
-
-    # Summary statistics
-    total_riders = len(all_riders)
-    total_drivers = len(all_drivers)
-    matched_riders_count = len(matched_riders)
-    unmatched_riders_count = len(unmatched_riders)
-    matched_drivers_count = len(matched_drivers)
-    unmatched_drivers_count = len(unmatched_drivers)
-    average_wait_time_riders = total_wait_time_riders / matched_riders_count if matched_riders_count else 0
-    average_wait_time_drivers = total_wait_time_drivers / matched_drivers_count if matched_drivers_count else 0
-
-    # Print results
-    print("Summary Statistics:")
-    print(f"Total Riders: {total_riders}")
-    print(f"Matched Riders: {matched_riders_count}")
-    print(f"Unmatched Riders: {unmatched_riders_count}")
-    print(f"Total Drivers: {total_drivers}")
-    print(f"Matched Drivers: {matched_drivers_count}")
-    print(f"Unmatched Drivers: {unmatched_drivers_count}")
-    print(f"Average Wait Time for Riders: {average_wait_time_riders:.2f}")
-    print(f"Average Wait Time for Drivers: {average_wait_time_drivers:.2f}")
-
-    return matched_riders, unmatched_riders, matched_drivers, unmatched_drivers
-
-def batch_matching(riders, drivers, adj_matrix, batch_window):
+def greedy_matching_process(event_queue, adj_matrix):
     G = nx.from_numpy_array(adj_matrix)
     path_lengths = dict(nx.all_pairs_dijkstra_path_length(G))
+    
+    available_riders = []
+    available_drivers = []
+    matched_pairs = []
+    current_time = 0
 
-    matched_riders = set()
-    matched_drivers = set()
+    while True:
+        event = event_queue.get_next_event()
+        if event is None:
+            break
 
-    all_riders = []
-    all_drivers = []
+        current_time = event.time
 
-    # Process in batches based on the batch window
-    for t in range(0, len(riders), batch_window):
-        batch_riders = []
-        batch_drivers = []
+        if event.event_type == 'rider_arrival':
+            rider = event.entity
+            match = find_best_match(rider, available_drivers, path_lengths)
+            if match:
+                driver, _ = match
+                matched_pairs.append((rider, driver, current_time))
+                available_drivers.remove(driver)
+            else:
+                available_riders.append(rider)
+        elif event.event_type == 'driver_arrival':
+            driver = event.entity
+            match = find_best_match(driver, available_riders, path_lengths)
+            if match:
+                rider, _ = match
+                matched_pairs.append((rider, driver, current_time))
+                available_riders.remove(rider)
+            else:
+                available_drivers.append(driver)
 
-        # Collect all riders and drivers in the current batch window
-        for batch_t in range(t, min(t + batch_window, len(riders))):
-            batch_riders.extend(riders[batch_t])
-            batch_drivers.extend(drivers[batch_t])
+        # Remove expired riders and drivers
+        available_riders = [r for r in available_riders if current_time - r.arrival_time < r.patience]
+        available_drivers = [d for d in available_drivers if current_time - d.arrival_time < d.patience]
 
-        # Find optimal matching within the current batch window
-        for rider in batch_riders:
-            best_match = None
-            best_cost = float('inf')
+    return matched_pairs, available_riders, available_drivers
 
-            for driver in batch_drivers:
-                if driver not in matched_drivers:
-                    rider_pos = rider.location[1]
-                    driver_pos = driver.location[1]
-                    travel_cost = path_lengths[rider_pos][driver_pos]
+def find_best_match(entity, available_entities, path_lengths):
+    best_match = None
+    best_cost = float('inf')
 
-                    if travel_cost < best_cost:
-                        best_cost = travel_cost
-                        best_match = driver
+    for other_entity in available_entities:
+        cost = path_lengths[entity.location][other_entity.location]
+        if cost < best_cost:
+            best_cost = cost
+            best_match = other_entity
 
-            if best_match:
-                matched_riders.add(rider)
-                matched_drivers.add(best_match)
-                batch_drivers.remove(best_match)  # Remove matched driver from the batch
+    return (best_match, best_cost) if best_match else None
 
-        all_riders.extend(batch_riders)
-        all_drivers.extend(batch_drivers)
+def batch_matching_process(event_queue, adj_matrix, batch_window):
+    G = nx.from_numpy_array(adj_matrix)
+    path_lengths = dict(nx.all_pairs_dijkstra_path_length(G))
+    
+    batch_riders = []
+    batch_drivers = []
+    matched_pairs = []
+    current_time = 0
+    next_batch_time = batch_window
 
-    # Calculate unmatched riders and drivers
-    unmatched_riders = set(all_riders) - matched_riders
-    unmatched_drivers = set(all_drivers) - matched_drivers
+    while True:
+        event = event_queue.get_next_event()
+        if event is None:
+            break
 
-    # Calculate total wait time for matched
-    total_wait_time_riders = sum(rider.sojourn_time for rider in matched_riders)
-    total_wait_time_drivers = sum(driver.sojourn_time for driver in matched_drivers)
+        current_time = event.time
 
-    # Summary statistics
-    total_riders = len(all_riders)
-    total_drivers = len(all_drivers)
-    matched_riders_count = len(matched_riders)
+        if event.event_type == 'rider_arrival':
+            batch_riders.append(event.entity)
+        elif event.event_type == 'driver_arrival':
+            batch_drivers.append(event.entity)
+
+        if current_time >= next_batch_time:
+            new_matches = perform_batch_matching(batch_riders, batch_drivers, path_lengths, current_time)
+            matched_pairs.extend(new_matches)
+            
+            # Remove matched entities from batches
+            batch_riders = [r for r in batch_riders if not any(m[0] == r for m in new_matches)]
+            batch_drivers = [d for d in batch_drivers if not any(m[1] == d for m in new_matches)]
+            
+            next_batch_time = current_time + batch_window
+
+    return matched_pairs, batch_riders, batch_drivers
+
+def perform_batch_matching(riders, drivers, path_lengths, current_time):
+    cost_matrix = np.zeros((len(riders), len(drivers)))
+    for i, rider in enumerate(riders):
+        for j, driver in enumerate(drivers):
+            cost_matrix[i][j] = path_lengths[rider.location][driver.location]
+
+    row_ind, col_ind = linear_sum_assignment(cost_matrix)
+    
+    matches = []
+    for r, c in zip(row_ind, col_ind):
+        matches.append((riders[r], drivers[c], current_time))
+
+    return matches
+
+# Analysis Function
+
+def analyze_results(matched_pairs, unmatched_riders, unmatched_drivers):
+    total_riders = len(matched_pairs) + len(unmatched_riders)
+    total_drivers = len(matched_pairs) + len(unmatched_drivers)
+    
+    matched_count = len(matched_pairs)
     unmatched_riders_count = len(unmatched_riders)
-    matched_drivers_count = len(matched_drivers)
     unmatched_drivers_count = len(unmatched_drivers)
-    average_wait_time_riders = total_wait_time_riders / matched_riders_count if matched_riders_count else 0
-    average_wait_time_drivers = total_wait_time_drivers / matched_drivers_count if matched_drivers_count else 0
-
-    # Print results
-    print("Batch Matching Summary Statistics:")
+    
+    total_wait_time = sum(match_time - rider.arrival_time for rider, _, match_time in matched_pairs)
+    avg_wait_time = total_wait_time / matched_count if matched_count > 0 else 0
+    
     print(f"Total Riders: {total_riders}")
-    print(f"Matched Riders: {matched_riders_count}")
-    print(f"Unmatched Riders: {unmatched_riders_count}")
     print(f"Total Drivers: {total_drivers}")
-    print(f"Matched Drivers: {matched_drivers_count}")
+    print(f"Matched Pairs: {matched_count}")
+    print(f"Unmatched Riders: {unmatched_riders_count}")
     print(f"Unmatched Drivers: {unmatched_drivers_count}")
-    print(f"Average Wait Time for Riders: {average_wait_time_riders:.2f}")
-    print(f"Average Wait Time for Drivers: {average_wait_time_drivers:.2f}")
+    print(f"Average Wait Time: {avg_wait_time:.2f}")
 
-    return matched_riders, unmatched_riders, matched_drivers, unmatched_drivers
+    return {
+        'total_riders': total_riders,
+        'total_drivers': total_drivers,
+        'matched_count': matched_count,
+        'unmatched_riders': unmatched_riders_count,
+        'unmatched_drivers': unmatched_drivers_count,
+        'avg_wait_time': avg_wait_time
+    }

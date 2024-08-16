@@ -8,26 +8,32 @@ rate_riders = 5  # Rate of rider arrivals (Poisson)
 rate_drivers = 5  # Rate of driver arrivals (Poisson)
 sojourn_rate = 0.4
 batch_window = 5  # Batch window size
-
-# Initialize event queue and other data structures
-event_queue = []
-matched_riders = []
-matched_drivers = []
+simulation_time = 100  # Total simulation time
 
 # Generate city graph
 adj_matrix = generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob, extra_edges)
 
-# Generate riders and drivers as events
-create_riders_and_drivers(event_queue, rate_riders, rate_drivers, sojourn_rate, adj_matrix, num_nodes)
+# Initialize event queue
+event_queue = EventQueue()
 
-# Process events and perform matching
-matched_riders, matched_drivers = process_event(event_queue, matched_riders, matched_drivers, adj_matrix)
-
-# Perform batch matching
-print("\n\nBATCH MATCHING \n")
-matched_riders_batch, unmatched_riders_batch, matched_drivers_batch, unmatched_drivers_batch = batch_matching(matched_riders, matched_drivers, adj_matrix, batch_window)
+# Generate events
+generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate, num_nodes, simulation_time)
 
 # Perform greedy matching
-print("\n\nGREEDY MATCHING \n")
-matched_riders_greedy, unmatched_riders_greedy, matched_drivers_greedy, unmatched_drivers_greedy = greedy_matching(matched_riders, matched_drivers)
+print("\nGREEDY MATCHING")
+matched_pairs_greedy, unmatched_riders_greedy, unmatched_drivers_greedy = greedy_matching_process(event_queue, adj_matrix)
+greedy_results = analyze_results(matched_pairs_greedy, unmatched_riders_greedy, unmatched_drivers_greedy)
 
+# Reset event queue for batch matching
+event_queue = EventQueue()
+generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate, num_nodes, simulation_time)
+
+# Perform batch matching
+print("\nBATCH MATCHING")
+matched_pairs_batch, unmatched_riders_batch, unmatched_drivers_batch = batch_matching_process(event_queue, adj_matrix, batch_window)
+batch_results = analyze_results(matched_pairs_batch, unmatched_riders_batch, unmatched_drivers_batch)
+
+# Compare results
+print("\nCOMPARISON")
+print(f"Greedy Matching - Matched: {greedy_results['matched_count']}, Avg Wait Time: {greedy_results['avg_wait_time']:.2f}")
+print(f"Batch Matching - Matched: {batch_results['matched_count']}, Avg Wait Time: {batch_results['avg_wait_time']:.2f}")
