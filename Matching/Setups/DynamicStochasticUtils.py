@@ -173,3 +173,11 @@ def optimal_offline_benchmark(riders, drivers, adj_matrix):
     print(f"Average Wait Time for Drivers: {average_wait_time_drivers:.2f}")
 
     return matched_riders, unmatched_riders, matched_drivers, unmatched_drivers
+
+
+# Just adjust arrival parameter rather than adding a price mechanism into the matching model
+# Make the arrival rates seasonal and non-static 
+
+# Recalculate LP benchmark with every parameter change
+# "Upon statistical difference, recalculate"
+# Arrival rate is a parameter of the 

@@ -143,3 +143,13 @@ if __name__ == "__main__":
     print(f"Matched pairs: {len(matched_pairs)}")
     print(f"Unmatched riders: {len(unmatched_riders)}")
     print(f"Unmatched drivers: {len(unmatched_drivers)}")
+
+
+    # Type and label arrive at rate
+    # Decrease at another rate (based on compatible nodes)
+    # This rate is double-counted 
+
+    # Virtual markov chain in appendix B4
+    # You can calculate the i,l pair for a simple distribution 
+
+    # 
