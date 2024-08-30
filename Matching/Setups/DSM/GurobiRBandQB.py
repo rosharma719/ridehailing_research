@@ -26,12 +26,12 @@ def solve_RB(rewards, lambda_i, lambda_j):
 
     # Flow conservation constraints for active types
     for i in I:
-        model.addConstr(sum(x[i, j] for j in J) <= lambda_i[i],
+        model.addConstr(sum(x[i, j] for j in J) <= lambda_i.get(i, 0),
                         name=f"Flow_Constraint_{i}")
 
     # Passive arrival constraints for passive types
     for j in J:
-        model.addConstr(sum(x[i, j] for i in I) <= lambda_j[j],
+        model.addConstr(sum(x[i, j] for i in I) <= lambda_j.get(j, 0),
                         name=f"Arrival_Constraint_{j}")
 
     # Objective function: Maximize total reward

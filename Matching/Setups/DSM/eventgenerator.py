@@ -10,7 +10,8 @@ class Rider:
         self.patience = patience
         self.sojourn_time = sojourn_time
         self.abandonment_time = arrival_time + patience  # Time when the rider will abandon if unmatched
-        self.type = "Rider"
+        self.type = f"Rider {location}"  # Includes location in the type
+        self.label = None  # Will be set to 'active' or 'passive'
 
 class Driver:
     def __init__(self, arrival_time, location, patience, sojourn_time):
@@ -19,7 +20,8 @@ class Driver:
         self.patience = patience
         self.sojourn_time = sojourn_time
         self.abandonment_time = arrival_time + patience  # Time when the driver will abandon if unmatched
-        self.type = "Driver"
+        self.type = f"Driver {location}"  # Includes location in the type
+        self.label = None  # Will be set to 'active' or 'passive'
 
 # Event Class with Detailed Event Types
 class Event:
@@ -45,7 +47,6 @@ class EventQueue:
     def is_empty(self):
         return len(self.queue) == 0
 
-# Generate Events and Populate the Timeline
 def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time):
     current_time = 0
 
@@ -56,6 +57,12 @@ def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders,
             patience = np.random.uniform(1, 10)  # Random patience time
             sojourn_time = np.random.exponential(1 / sojourn_rate_riders)
             rider_location = np.random.randint(0, num_nodes)
+            
+            # Ensure the destination is different from the rider's location
+            rider_destination = rider_location
+            while rider_destination == rider_location:
+                rider_destination = np.random.randint(0, num_nodes)
+            
             rider = Rider(next_rider_time, rider_location, patience, sojourn_time)
             event_queue.add_event(Event(next_rider_time, 'arrival', rider))
             event_queue.add_event(Event(rider.abandonment_time, 'abandonment', rider))
