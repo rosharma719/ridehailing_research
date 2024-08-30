@@ -65,7 +65,11 @@ def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders,
             
             rider = Rider(next_rider_time, rider_location, patience, sojourn_time)
             event_queue.add_event(Event(next_rider_time, 'arrival', rider))
-            event_queue.add_event(Event(rider.abandonment_time, 'abandonment', rider))
+
+            # Only add the abandonment event if it happens within the simulation time
+            abandonment_time = rider.abandonment_time
+            if abandonment_time < simulation_time:
+                event_queue.add_event(Event(abandonment_time, 'abandonment', rider))
 
         # Generate the next driver arrival time
         next_driver_time = current_time + np.random.exponential(1 / rate_drivers)
@@ -75,7 +79,12 @@ def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders,
             driver_location = np.random.randint(0, num_nodes)
             driver = Driver(next_driver_time, driver_location, patience, sojourn_time)
             event_queue.add_event(Event(next_driver_time, 'arrival', driver))
-            event_queue.add_event(Event(driver.abandonment_time, 'abandonment', driver))
 
-        # Move forward to the next event time
+            # Only add the abandonment event if it happens within the simulation time
+            abandonment_time = driver.abandonment_time
+            if abandonment_time < simulation_time:
+                event_queue.add_event(Event(abandonment_time, 'abandonment', driver))
+
+        # Move forward to the next event time, but ensure it's within the simulation time
         current_time = min(next_rider_time, next_driver_time)
+        current_time = min(current_time, simulation_time)  # Ensure we do not go beyond the simulation time

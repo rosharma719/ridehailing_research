@@ -27,64 +27,89 @@ def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_ed
             adjacency_matrix[node1][node2] = 1
             adjacency_matrix[node2][node1] = 1
             edges_added += 1
-
+    print(adjacency_matrix)
     return adjacency_matrix
 
-def adjacency_to_rewards(adjacency_matrix, abandonment_cost=-10):
-    """
-    Converts the adjacency matrix into a reward dictionary suitable for Gurobi input,
-    using -#edges as the cost of each match and a configurable abandonment cost.
-    
-    :param adjacency_matrix: A 2D numpy array representing the adjacency matrix of the graph.
-    :param abandonment_cost: The cost of abandonment, default set to -10.
-    :return: A dictionary of rewards where each key is a type pair (e.g., 'Active Driver 0' to 'Passive Rider 1'),
-             and the value is the negative edge count for adjacency, or abandonment cost.
-    """
+def adjacency_to_rewards(adjacency_matrix, reward_value=8):
     num_nodes = adjacency_matrix.shape[0]
     rewards = {}
 
     # Create distinct types for each node as 'Active' (drivers) and 'Passive' (riders)
-    active_types = [f"Active Driver {i}" for i in range(num_nodes)]
-    passive_types = [f"Passive Rider {i}" for i in range(num_nodes)]
-    
-    # Add dummy type for abandonment
-    dummy_type = "Dummy Rider"
+    active_types = [f"Active Driver Node {i}" for i in range(num_nodes)]
+    passive_types = [f"Passive Rider Node {i}" for i in range(num_nodes)]
 
-    # Populate the rewards based on adjacency and abandonment costs
+    # Populate the rewards based on the sum of edges between driver and rider nodes
     for i, active_type in enumerate(active_types):
         rewards[active_type] = {}
         for j, passive_type in enumerate(passive_types):
-            # Use negative edge count as cost for direct connection
-            rewards[active_type][passive_type] = -np.sum(adjacency_matrix[i]) if adjacency_matrix[i][j] == 1 else abandonment_cost
-
-        # Set abandonment penalty for this driver to the dummy rider
-        rewards[active_type][dummy_type] = abandonment_cost
-
-    # Add the dummy rider in the list of passive types
-    passive_types.append(dummy_type)
+            if adjacency_matrix[i][j] == 1:
+                # Reward is 8 minus the sum of edges connected to both the driver and rider nodes
+                edge_sum = np.sum(adjacency_matrix[i]) + np.sum(adjacency_matrix[j])
+                rewards[active_type][passive_type] = reward_value-edge_sum
+            elif i == j:
+                edge_sum = np.sum(adjacency_matrix[i]) + np.sum(adjacency_matrix[j])
+                rewards[active_type][passive_type] = reward_value-edge_sum 
+            else:
+                # No reward for nodes that are not directly connected
+                rewards[active_type][passive_type] = 0
 
     return rewards
 
+class RealizationGraph: 
+    def __init__(self):
+        self.active_drivers = []
+        self.passive_riders = []
+        self.total_trip_distance = 0
+        self.num_drivers_matched = 0
+        self.num_riders_matched = 0
+        self.total_rider_count = 0
+        self.print = False
 
-def calculate_label_distribution(flow_matrix, active_types, passive_types):
-    """
-    Calculate the label distribution for each type based on the flow matrix.
-    
-    :param flow_matrix: A NumPy array representing the flow matrix of optimal match rates.
-    :param active_types: List of active types.
-    :param passive_types: List of passive types.
-    :return: A dictionary with the probability distribution of passive labels for each type.
-    """
-    label_distribution = {}
-    for j_idx, j in enumerate(passive_types):
-        # Calculate passive arrival rate λ_p_i
-        lambda_p_j = np.sum(flow_matrix[:, j_idx])
+    def add_driver(self, driver):
+        if self.print: 
+            print(f"Driver added at location {driver.location}")
+        self.active_drivers.append(driver)
 
-        # Calculate the total arrival rate λ_i
-        total_lambda_j = np.sum(flow_matrix[:, j_idx]) + np.sum(flow_matrix[j_idx, :])
+    def remove_driver(self, driver):
+        if self.print: 
+            print(f"Driver removed at location {driver.location}")
+        self.active_drivers.remove(driver)
 
-        # Probability distribution of passive label
-        prob_passive = lambda_p_j / total_lambda_j if total_lambda_j > 0 else 0
-        label_distribution[j] = prob_passive
-    
-    return label_distribution
+    def add_rider(self, rider):
+        if self.print: 
+            print(f"Rider added at location {rider.location}")
+        self.passive_riders.append(rider)
+        self.total_rider_count += 1  # Ensure this is counted every time a rider arrives
+
+    def remove_rider(self, rider):
+        if self.print: 
+            print(f"Rider removed at location {rider.location}")
+        self.passive_riders.remove(rider)
+
+    def find_driver_for_rider(self, rider):
+        if self.active_drivers:
+            matched_driver = self.active_drivers.pop(0)  # Pop the first available driver
+
+            trip_distance = abs(rider.location - matched_driver.location)
+
+            if self.print: 
+                print(f"Matching Rider at {rider.location} with Driver at {matched_driver.location}")
+            
+            self.total_trip_distance += trip_distance
+            self.num_drivers_matched += 1
+            self.num_riders_matched += 1
+
+            return matched_driver
+        return None
+
+    def print_summary(self):
+        if self.num_riders_matched > 0:
+            average_trip_distance = self.total_trip_distance / self.num_riders_matched
+        else:
+            average_trip_distance = 0
+
+        print("\nSummary Statistics:")
+        print(f"Number of Drivers Matched: {self.num_drivers_matched}")
+        print(f"Number of Riders Matched: {self.num_riders_matched}")
+        print(f"Total Riders Processed: {self.total_rider_count}")
+        print(f"Average Trip Distance: {average_trip_distance:.2f} units")
