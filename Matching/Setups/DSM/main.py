@@ -12,7 +12,6 @@ extra_edges = 0 # Proportion of extra random edges in the graph
 adj_matrix = utils.generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob, extra_edges)
 rewards = utils.adjacency_to_rewards(adj_matrix, reward_value=8)
 
-
 # Define arrival rates for active and passive types based on nodes
 lambda_i = {f"Active Driver Node {i}": 1.0 for i in range(num_nodes)}
 lambda_j = {f"Passive Rider Node {i}": 0.8 for i in range(num_nodes)}
@@ -47,4 +46,4 @@ def print_events(event_queue):
         print(f"Time: {event.time:.2f}, Event: {event.event_type}, Entity: {entity_type}, Location: {event.entity.location}")
 
 # Call the greedy matching algorithm
-matchers.greedy_auto_label(event_queue)
+matchers.greedy_auto_label(event_queue, rewards)

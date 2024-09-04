@@ -2,7 +2,6 @@ import heapq
 import numpy as np
 import random
 
-# Rider and Driver Classes
 class Rider:
     def __init__(self, arrival_time, location, patience, sojourn_time):
         self.arrival_time = arrival_time
@@ -10,7 +9,7 @@ class Rider:
         self.patience = patience
         self.sojourn_time = sojourn_time
         self.abandonment_time = arrival_time + patience  # Time when the rider will abandon if unmatched
-        self.type = f"Rider {location}"  # Includes location in the type
+        self.type = f"Passive Rider Node {location}"  # Match the type format to the rewards dictionary
         self.label = None  # Will be set to 'active' or 'passive'
 
 class Driver:
@@ -20,8 +19,9 @@ class Driver:
         self.patience = patience
         self.sojourn_time = sojourn_time
         self.abandonment_time = arrival_time + patience  # Time when the driver will abandon if unmatched
-        self.type = f"Driver {location}"  # Includes location in the type
+        self.type = f"Active Driver Node {location}"  # Match the type format to the rewards dictionary
         self.label = None  # Will be set to 'active' or 'passive'
+
 
 # Event Class with Detailed Event Types
 class Event:

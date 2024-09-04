@@ -6,6 +6,7 @@ import os
 os.environ['GRB_LICENSE_FILE'] = r'C:\\Users\\kragg\\OneDrive\\Documents\\Code\\Licenses\\gurobi.lic'
 
 def solve_RB(rewards, lambda_i, lambda_j):
+    printStuff = False
     """
     Solve the LP relaxation (RB) using Gurobi based on the given rewards and arrival rates.
     
@@ -48,15 +49,22 @@ def solve_RB(rewards, lambda_i, lambda_j):
     if model.status == GRB.OPTIMAL:
         x_values = model.getAttr('x', x)
         optimal_reward = model.ObjVal
-        print("Optimal Flow Rates (RB Solution):")
+        
+        if printStuff:
+            print("Optimal Flow Rates (RB Solution):")
         for i_idx, i in enumerate(I):
             for j_idx, j in enumerate(J):
                 flow_value = x_values[i, j]
                 flow_matrix[i_idx, j_idx] = flow_value
-                print(f"Flow from {i} to {j}: {flow_value:.4f}")
+                
+            if printStuff:
+                    print(f"Flow from {i} to {j}: {flow_value:.4f}")
+        
         print(f"Maximum Reward: {optimal_reward:.4f}\n")
     else:
-        print("No optimal solution found for RB.")
+        
+        if printStuff:
+            print("No optimal solution found for RB.")
     
     # Return the flow matrix
     return flow_matrix

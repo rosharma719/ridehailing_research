@@ -60,15 +60,19 @@ class RealizationGraph:
         self.active_drivers = []
         self.passive_riders = []
         self.total_trip_distance = 0
+        self.total_wait_time = 0
+        self.total_rewards = 0
         self.num_drivers_matched = 0
         self.num_riders_matched = 0
         self.total_rider_count = 0
+        self.total_driver_count = 0
         self.print = False
 
     def add_driver(self, driver):
         if self.print: 
             print(f"Driver added at location {driver.location}")
         self.active_drivers.append(driver)
+        self.total_driver_count += 1  # Count every driver added
 
     def remove_driver(self, driver):
         if self.print: 
@@ -79,37 +83,51 @@ class RealizationGraph:
         if self.print: 
             print(f"Rider added at location {rider.location}")
         self.passive_riders.append(rider)
-        self.total_rider_count += 1  # Ensure this is counted every time a rider arrives
+        self.total_rider_count += 1  # Count every rider added
 
     def remove_rider(self, rider):
         if self.print: 
             print(f"Rider removed at location {rider.location}")
         self.passive_riders.remove(rider)
 
-    def find_driver_for_rider(self, rider):
+    def find_driver_for_rider(self, rider, rewards):
         if self.active_drivers:
             matched_driver = self.active_drivers.pop(0)  # Pop the first available driver
 
+            wait_time = rider.arrival_time - matched_driver.arrival_time
             trip_distance = abs(rider.location - matched_driver.location)
+            reward = rewards[matched_driver.type][rider.type]  # Get reward for this match
 
             if self.print: 
-                print(f"Matching Rider at {rider.location} with Driver at {matched_driver.location}")
+                print(f"Matching Rider at {rider.location} with Driver at {matched_driver.location}, Reward: {reward}")
             
+            self.total_wait_time += wait_time
             self.total_trip_distance += trip_distance
+            self.total_rewards += reward  # Reward is added here
             self.num_drivers_matched += 1
             self.num_riders_matched += 1
 
             return matched_driver
         return None
 
+
     def print_summary(self):
         if self.num_riders_matched > 0:
             average_trip_distance = self.total_trip_distance / self.num_riders_matched
+            average_wait_time = self.total_wait_time / self.num_riders_matched
+            average_reward = self.total_rewards / self.num_riders_matched
         else:
             average_trip_distance = 0
+            average_wait_time = 0
+            average_reward = 0
 
         print("\nSummary Statistics:")
         print(f"Number of Drivers Matched: {self.num_drivers_matched}")
         print(f"Number of Riders Matched: {self.num_riders_matched}")
         print(f"Total Riders Processed: {self.total_rider_count}")
+        print(f"Total Drivers Processed: {self.total_driver_count}")
+        print(f"Total Rewards: {self.total_rewards:.2f}")
+        print(f"Average Reward per Transaction: {average_reward:.2f}")
         print(f"Average Trip Distance: {average_trip_distance:.2f} units")
+        print(f"Average Wait Time: {average_wait_time:.2f} units")
+
