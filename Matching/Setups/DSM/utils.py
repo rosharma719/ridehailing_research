@@ -2,8 +2,13 @@ import numpy as np
 import random
 
 def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_edges=0.15):
-    if num_nodes <= 1:
-        raise ValueError("Number of nodes must be greater than 1")
+    if num_nodes <= 0:
+        raise ValueError("Number of nodes must be greater than 0")
+
+    if num_nodes == 1:
+        # Return a 1x1 matrix for a single node case
+        adjacency_matrix = np.zeros((1, 1), dtype=int)
+        return adjacency_matrix
 
     grid_size = int(np.ceil(np.sqrt(num_nodes)))
     adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=int)
@@ -30,6 +35,7 @@ def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_ed
     print(adjacency_matrix)
     return adjacency_matrix
 
+
 def adjacency_to_rewards(adjacency_matrix, reward_value=8):
     num_nodes = adjacency_matrix.shape[0]
     rewards = {}
@@ -42,18 +48,19 @@ def adjacency_to_rewards(adjacency_matrix, reward_value=8):
     for i, active_type in enumerate(active_types):
         rewards[active_type] = {}
         for j, passive_type in enumerate(passive_types):
-            if adjacency_matrix[i][j] == 1:
-                # Reward is 8 minus the sum of edges connected to both the driver and rider nodes
+            if num_nodes == 1:  # Special case for one node
+                rewards[active_type][passive_type] = reward_value
+            elif adjacency_matrix[i][j] == 1:
                 edge_sum = np.sum(adjacency_matrix[i]) + np.sum(adjacency_matrix[j])
-                rewards[active_type][passive_type] = reward_value-edge_sum
+                rewards[active_type][passive_type] = reward_value - edge_sum
             elif i == j:
                 edge_sum = np.sum(adjacency_matrix[i]) + np.sum(adjacency_matrix[j])
-                rewards[active_type][passive_type] = reward_value-edge_sum 
+                rewards[active_type][passive_type] = reward_value - edge_sum 
             else:
-                # No reward for nodes that are not directly connected
                 rewards[active_type][passive_type] = 0
 
     return rewards
+
 
 class RealizationGraph: 
     def __init__(self):
