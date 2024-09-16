@@ -1,28 +1,24 @@
 import numpy as np
 import random
+from scipy.sparse.csgraph import shortest_path
 
 def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_edges=0.15):
     if num_nodes <= 0:
         raise ValueError("Number of nodes must be greater than 0")
 
-    if num_nodes == 1:
-        # Return a 1x1 matrix for a single node case
-        adjacency_matrix = np.zeros((1, 1), dtype=int)
-        return adjacency_matrix
-
-    grid_size = int(np.ceil(np.sqrt(num_nodes)))
     adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=int)
 
+    # Create self-loops
     for i in range(num_nodes):
-        if i % grid_size != grid_size - 1 and i + 1 < num_nodes:
-            if random.random() > skip_prob:
-                adjacency_matrix[i][i + 1] = 1
-                adjacency_matrix[i + 1][i] = 1
-        if i + grid_size < num_nodes:
-            if random.random() > skip_prob:
-                adjacency_matrix[i][i + grid_size] = 1
-                adjacency_matrix[i + grid_size][i] = 1
+        adjacency_matrix[i][i] = 1  # Self-loop at each node
 
+    # Create edges between adjacent nodes
+    for i in range(num_nodes - 1):
+        if random.random() > skip_prob:
+            adjacency_matrix[i][i + 1] = 1
+            adjacency_matrix[i + 1][i] = 1
+
+    # Add additional random edges based on extra_edges probability
     num_extra_edges = int(extra_edges * num_nodes)
     edges_added = 0
     while edges_added < num_extra_edges:
@@ -32,35 +28,32 @@ def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_ed
             adjacency_matrix[node1][node2] = 1
             adjacency_matrix[node2][node1] = 1
             edges_added += 1
+    
     print(adjacency_matrix)
     return adjacency_matrix
-
 
 def adjacency_to_rewards(adjacency_matrix, reward_value=8):
     num_nodes = adjacency_matrix.shape[0]
     rewards = {}
 
-    # Create distinct types for each node as 'Active' (drivers) and 'Passive' (riders)
+    # Calculate shortest paths between all pairs of nodes
+    dist_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
+
     active_types = [f"Active Driver Node {i}" for i in range(num_nodes)]
     passive_types = [f"Passive Rider Node {i}" for i in range(num_nodes)]
 
-    # Populate the rewards based on the sum of edges between driver and rider nodes
     for i, active_type in enumerate(active_types):
         rewards[active_type] = {}
         for j, passive_type in enumerate(passive_types):
-            if num_nodes == 1:  # Special case for one node
-                rewards[active_type][passive_type] = reward_value
-            elif adjacency_matrix[i][j] == 1:
-                edge_sum = np.sum(adjacency_matrix[i]) + np.sum(adjacency_matrix[j])
-                rewards[active_type][passive_type] = reward_value - edge_sum
-            elif i == j:
-                edge_sum = np.sum(adjacency_matrix[i]) + np.sum(adjacency_matrix[j])
-                rewards[active_type][passive_type] = reward_value - edge_sum 
+            distance = int(dist_matrix[i][j])
+            if distance >= 0:  # Only valid distances
+                rewards[active_type][passive_type] = max(reward_value - distance, 0)  # Subtract distance from reward
             else:
-                rewards[active_type][passive_type] = 0
+                rewards[active_type][passive_type] = 0  # No valid path, no reward
 
+    print("Rewards Matrix:")
+    print(rewards, '\n\n')
     return rewards
-
 
 class RealizationGraph: 
     def __init__(self):
@@ -116,7 +109,6 @@ class RealizationGraph:
 
             return matched_driver
         return None
-
 
     def print_summary(self):
         if self.num_riders_matched > 0:

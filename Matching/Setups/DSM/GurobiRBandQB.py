@@ -43,14 +43,24 @@ def solve_RB(rewards, lambda_i, lambda_j, mu_i):
             )
 
     # Objective function: Maximize total reward
-    model.setObjective(sum(rewards[i][j] * x[i, j] for i in I for j in J),
-                       GRB.MAXIMIZE)
+    model.setObjective(
+        sum(rewards[i][j] * x[i, j] for i in I for j in J),
+        GRB.MAXIMIZE
+    )
 
     # Optimize the model
     model.optimize()
 
     # Prepare the flow matrix
     flow_matrix = np.zeros((len(I), len(J)))
+
+    print("Model variable:")
+    print(model)
+    print("Model constraints:")
+    print(model.getConstrs())
+    print("Model objective:")
+    print(model.getObjective())
+    model.write("model.lp")
 
     # Retrieve and print results with clear labels
     if model.status == GRB.OPTIMAL:
@@ -82,3 +92,17 @@ def solve_RB(rewards, lambda_i, lambda_j, mu_i):
     
     # Return the flow matrix
     return flow_matrix
+
+# Example usage
+if __name__ == "__main__":
+    # Test values (these should be provided or generated appropriately)
+    rewards = {
+        'Active Driver Node 0': {'Passive Rider Node 0': 2, 'Passive Rider Node 1': 1},
+        'Active Driver Node 1': {'Passive Rider Node 0': 1, 'Passive Rider Node 1': 2}
+    }
+    lambda_i = {'Active Driver Node 0': 0.3, 'Active Driver Node 1': 0.3}
+    lambda_j = {'Passive Rider Node 0': 0.4, 'Passive Rider Node 1': 0.4}
+    mu_i = {'Active Driver Node 0': 0.2, 'Active Driver Node 1': 0.2}
+
+    # Solve RB and get the flow matrix
+    flow_matrix = solve_RB(rewards, lambda_i, lambda_j, mu_i)
