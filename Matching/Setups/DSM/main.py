@@ -4,7 +4,7 @@ import eventgenerator as eg
 import matchers
 
 # Parameters
-num_nodes = 2
+num_nodes = 1
 skip_prob = 0  # Probability of skipping an edge in the grid
 extra_edges = 0  # Proportion of extra random edges in the graph
 
@@ -17,7 +17,7 @@ rate_drivers = 0.3  # Arrival rate of drivers
 sojourn_rate_riders = 0.5  # Average sojourn time for riders
 sojourn_rate_drivers = 0.2  # Average sojourn time for drivers
 
-reward_value = 8
+reward_value = 1
 
 # Generate the adjacency matrix and reward matrix
 adj_matrix = utils.generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob, extra_edges)
@@ -30,8 +30,10 @@ lambda_j = {f"Passive Rider Node {i}": rate_riders for i in range(num_nodes)}
 # Define abandonment rates for active types (example values)
 mu_i = {f"Active Driver Node {i}": sojourn_rate_drivers for i in range(num_nodes)}
 
-# Solve RB to get the flow matrix
-flow_matrix = grb.solve_RB(rewards, lambda_i, lambda_j, mu_i)
+# Solve RB and QB to get the flow matrices
+#RB_flow_matrix = grb.solve_RB(rewards, lambda_i, lambda_j, mu_i)
+
+QB_flow_matrix = grb.solve_QB(rewards, lambda_i, lambda_j, mu_i)
 
 
 # Generate the event timeline using the label distribution
