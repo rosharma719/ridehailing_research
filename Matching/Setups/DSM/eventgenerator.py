@@ -60,8 +60,13 @@ def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders,
             
             # Ensure the destination is different from the rider's location
             rider_destination = rider_location
-            while rider_destination == rider_location:
-                rider_destination = np.random.randint(0, num_nodes)
+            if num_nodes > 1:
+                rider_destination = rider_location
+                while rider_destination == rider_location:
+                    rider_destination = np.random.randint(0, num_nodes)
+            else:
+                rider_destination = rider_location  # No alternative if there's only one node
+
             
             rider = Rider(next_rider_time, rider_location, patience, sojourn_time)
             event_queue.add_event(Event(next_rider_time, 'arrival', rider))
