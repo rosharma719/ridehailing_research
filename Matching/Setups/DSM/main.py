@@ -4,7 +4,7 @@ import eventgenerator as eg
 import matchers
 
 # Parameters
-num_nodes = 10
+num_nodes = 2
 skip_prob = 0  # Probability of skipping an edge in the grid
 extra_edges = 0  # Proportion of extra random edges in the graph
 
@@ -31,16 +31,10 @@ lambda_j = {f"Passive Rider Node {i}": rate_riders for i in range(num_nodes)}
 mu_i = {f"Active Driver Node {i}": sojourn_rate_drivers for i in range(num_nodes)}
 
 # Solve RB and QB to get the flow matrices
-RB_flow_matrix = grb.solve_RB(rewards, lambda_i, lambda_j, mu_i)
+#RB_flow_matrix = grb.solve_RB(rewards, lambda_i, lambda_j, mu_i)
+QB_flow_matrix = grb.solve_QB(rewards, lambda_i, lambda_j, mu_i)
 
-#QB_flow_matrix = grb.solve_QB(rewards, lambda_i, lambda_j, mu_i)
-
-
-# Generate the event timeline using the label distribution
-event_queue = eg.EventQueue()
-eg.generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time)
-
-
+# Function to print the events from the event queue
 def print_events(event_queue):
     # Display generated events in order
     print("\nGenerated Events:")
@@ -49,8 +43,17 @@ def print_events(event_queue):
         entity_type = event.entity.type if event.entity else 'Unknown'
         print(f"Time: {event.time:.2f}, Event: {event.event_type}, Entity: {entity_type}, Location: {event.entity.location}")
 
-# Call the greedy matching algorithm
-matchers.greedy_auto_label(event_queue, rewards)
+# Function to run the main simulation
+def run_stuff():
+    # Setup code here (event generation, matching, etc.)
+    # event_queue should be defined here or passed in
+    event_queue = eg.EventQueue()
+    eg.generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time)
+    
+    # Matching and other simulation processing here
+    matchers.greedy_auto_label(event_queue, rewards)
 
-# Optional: Print the events
-print_events(event_queue)
+
+# Now you can call run_stuff
+if __name__ == "__main__":
+    run_stuff()

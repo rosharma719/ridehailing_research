@@ -1,9 +1,5 @@
-from gurobipy import Model, GRB, QuadExpr
+from gurobipy import Model, GRB
 import numpy as np
-
-# Set the Gurobi license path
-import os
-os.environ['GRB_LICENSE_FILE'] = r'C:\\Users\\kragg\\OneDrive\\Documents\\Code\\Licenses\\gurobi.lic'
 
 def solve_RB(rewards, lambda_i, lambda_j, mu_i):
     """
@@ -13,9 +9,8 @@ def solve_RB(rewards, lambda_i, lambda_j, mu_i):
     :param lambda_i: A dictionary of arrival rates for active types.
     :param lambda_j: A dictionary of arrival rates for passive types.
     :param mu_i: A dictionary of abandonment rates for active types.
-    :return: A NumPy array representing the flow matrix of optimal match rates.
+    :return: A dictionary with the flow matrix, abandonment rates, and unmatched vertices.
     """
-    # Extract active and passive types from the rewards dictionary
     I = list(rewards.keys())  # Active types
     J = list(rewards[I[0]].keys())  # Passive types
 
@@ -33,7 +28,7 @@ def solve_RB(rewards, lambda_i, lambda_j, mu_i):
             name=f"Flow_Constraint_{i}"
         )
 
-    # Abandonment rate constraint for each active type
+    # Abandonment rate constraint for each active-passive pair
     for i in I:
         for j in J:
             model.addConstr(
@@ -50,13 +45,11 @@ def solve_RB(rewards, lambda_i, lambda_j, mu_i):
     # Optimize the model
     model.optimize()
 
-    # Prepare the flow matrix
+    # Prepare the results
     flow_matrix = np.zeros((len(I), len(J)))
-    
-    print(model.getObjective())
-    model.write("model.lp")
+    abandonment = {}
+    unmatched = {}
 
-    # Retrieve and print results with clear labels
     if model.status == GRB.OPTIMAL:
         x_values = model.getAttr('x', x)
         x_a_values = model.getAttr('x', x_a)
@@ -77,33 +70,27 @@ def solve_RB(rewards, lambda_i, lambda_j, mu_i):
         # Print abandonment rates x_a[i]
         print("\n--- Abandonment Rates x_a[i] ---")
         for i in I:
-            print(f"x_a[{i}] (Abandonment for Active {i}): {x_a_values[i]:.4f}")
+            abandonment[i] = x_a_values[i]
+            print(f"x_a[{i}] (Abandonment for Active {i}): {abandonment[i]:.4f}")
+            print("-" * 40)
+
+        # Compute unmatched vertices
+        print("\n--- Unmatched Vertices ---")
+        for i in I:
+            unmatched[i] = lambda_i[i] - sum(flow_matrix[I.index(i), :]) - abandonment[i]
+            print(f"Unmatched for {i}: {unmatched[i]:.4f}")
             print("-" * 40)
 
         print(f"\n--- Maximum Reward: {optimal_reward:.4f} ---\n")
     else:
         print("No optimal solution found for RB.")
     
-    # Return the flow matrix
-    return flow_matrix
-
-# Example usage
-if __name__ == "__main__":
-    # Test values (these should be provided or generated appropriately)
-    rewards = {
-        'Active Driver Node 0': {'Passive Rider Node 0': 2, 'Passive Rider Node 1': 1},
-        'Active Driver Node 1': {'Passive Rider Node 0': 1, 'Passive Rider Node 1': 2}
+    # Return the flow matrix, abandonment rates, and unmatched vertices in a dictionary
+    return {
+        'flow_matrix': flow_matrix,
+        'abandonment': abandonment,
+        'unmatched': unmatched
     }
-    lambda_i = {'Active Driver Node 0': 0.3, 'Active Driver Node 1': 0.3}
-    lambda_j = {'Passive Rider Node 0': 0.4, 'Passive Rider Node 1': 0.4}
-    mu_i = {'Active Driver Node 0': 0.2, 'Active Driver Node 1': 0.2}
-
-    # Solve RB and get the flow matrix
-    flow_matrix = solve_RB(rewards, lambda_i, lambda_j, mu_i)
-
-
-
-
 
 def solve_QB(rewards, lambda_i, lambda_j, mu_i):
     """
@@ -113,12 +100,10 @@ def solve_QB(rewards, lambda_i, lambda_j, mu_i):
     :param lambda_i: A dictionary of arrival rates for active types.
     :param lambda_j: A dictionary of arrival rates for passive types.
     :param mu_i: A dictionary of abandonment rates for active types.
-    :return: A NumPy array representing the flow matrix of optimal match rates.
+    :return: A dictionary with the flow matrix, abandonment rates, and unmatched vertices.
     """
-
-    # Extract active and passive types from the rewards dictionary
-    I = list(rewards.keys())  # Active types (drivers)
-    J = list(rewards[I[0]].keys())  # Passive types (riders)
+    I = list(rewards.keys())  # Active types
+    J = list(rewards[I[0]].keys())  # Passive types
 
     # Initialize Gurobi model for QB
     model = Model("QB_Model")
@@ -151,10 +136,11 @@ def solve_QB(rewards, lambda_i, lambda_j, mu_i):
     # Optimize the model
     model.optimize()
 
-    # Prepare the flow matrix
+    # Prepare the results
     flow_matrix = np.zeros((len(I), len(J)))
+    abandonment = {}
+    unmatched = {}
 
-    # Retrieve and print results with clear labels
     if model.status == GRB.OPTIMAL:
         x_values = model.getAttr('x', x)
         x_a_values = model.getAttr('x', x_a)
@@ -175,27 +161,24 @@ def solve_QB(rewards, lambda_i, lambda_j, mu_i):
         # Print abandonment rates x_a[i]
         print("\n--- Abandonment Rates x_a[i] ---")
         for i in I:
-            print(f"x_a[{i}] (Abandonment for Active {i}): {x_a_values[i]:.4f}")
+            abandonment[i] = x_a_values[i]
+            print(f"x_a[{i}] (Abandonment for Active {i}): {abandonment[i]:.4f}")
+            print("-" * 40)
+
+        # Compute unmatched vertices
+        print("\n--- Unmatched Vertices ---")
+        for i in I:
+            unmatched[i] = lambda_i[i] - sum(flow_matrix[I.index(i), :]) - abandonment[i]
+            print(f"Unmatched for {i}: {unmatched[i]:.4f}")
             print("-" * 40)
 
         print(f"\n--- Maximum Reward: {optimal_reward:.4f} ---\n")
     else:
         print("No optimal solution found for QB.")
-
-    # Return the flow matrix
-    return flow_matrix
-
-
-# Example usage
-if __name__ == "__main__":
-    # Test values (these should be provided or generated appropriately)
-    rewards = {
-        'Active Driver Node 0': {'Passive Rider Node 0': 8, 'Passive Rider Node 1': 7},
-        'Active Driver Node 1': {'Passive Rider Node 0': 7, 'Passive Rider Node 1': 8}
+    
+    # Return the flow matrix, abandonment rates, and unmatched vertices in a dictionary
+    return {
+        'flow_matrix': flow_matrix,
+        'abandonment': abandonment,
+        'unmatched': unmatched
     }
-    lambda_i = {'Active Driver Node 0': 0.3, 'Active Driver Node 1': 0.3}
-    lambda_j = {'Passive Rider Node 0': 0.4, 'Passive Rider Node 1': 0.4}
-    mu_i = {'Active Driver Node 0': 0.2, 'Active Driver Node 1': 0.2}
-
-    # Solve QB and get the flow matrix
-    flow_matrix = solve_QB(rewards, lambda_i, lambda_j, mu_i)
