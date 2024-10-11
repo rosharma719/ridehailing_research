@@ -2,6 +2,34 @@ import numpy as np
 import random
 from scipy.sparse.csgraph import shortest_path
 
+# paper: https://lbsresearch.london.edu/id/eprint/2475/1/ALI2%20Dynamic%20Stochastic.pdf
+
+def obtain_tildex():
+    # solve optimization to obtain tilde{x} in (23) of the paper 
+
+# node (type = (rider/drive, node) pair is called type)
+# \mathcal{T} <- set of types, which includes driver and rider both
+def generate_label(is_rider, node, tildex_ij, tildex_i):
+    # tildex is (\tilde{x}_{i,j})_{i,j} in the paper, assuming two-dim array
+    # If rider -> label 0 (passive, always matches the precedent driver) 
+    # else - driver -> random labeling 
+    # (in the case of *two nodes*, the type is 1 or 2 - label 2 matches to both nodes, where label 1 matches to rider of the same node only) 
+    labels = []
+    lambdap = [] # (\lambda_p^j)_j in the paper
+    for j in riders:
+        lambdap[j] = tildex_i[j] + sum of tildex_ij[i][j]
+    for j in riders:
+        labels[j] = 0 # trivial labeling
+    for i in drivers:
+        S_i = # set of js such that tildex[i][j]> 0
+        hatlambda_il = np.zeros(S_i) # \hat{\lambda}_{i,p} in the paper
+        priorities = # elements in S_i's value of tildex[i][j]/\lambdap[j]
+        # Sort S_i in descending order of priorities. For example, for node 1, S_i should be [1, 2]
+        Use Eq. (24) to obtain hatlambda_il[len(S_i)-1] # the last index 
+        for j in reversed(S_i)[1:]: 
+            induction step to obtain \hat{\lambda}_{i,len(S_i)-2}, \hat{\lambda}_{i,len(S_i)-3},...,\hat{\lambda}_{i,0}, denoted in Eq. (25) 
+        normalized_hatlambda_il # driver_s distribution of labels, normalized to sum 1 (Eq. (27))
+
 def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_edges=0.15):
     if num_nodes <= 0:
         raise ValueError("Number of nodes must be greater than 0")
