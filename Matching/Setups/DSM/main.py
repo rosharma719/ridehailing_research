@@ -5,18 +5,14 @@ import matchers
 
 # Parameters
 num_nodes = 2
-skip_prob = 0  # Probability of skipping an edge in the grid
-extra_edges = 0  # Proportion of extra random edges in the graph
-
-# Event Generation Parameters
+skip_prob = 0  
+extra_edges = 0  
 simulation_time = 100  
 
-rate_riders = 0.4  # Arrival rate of riders
-rate_drivers = 0.3  # Arrival rate of drivers
-
-sojourn_rate_riders = 0.5  # Average sojourn time for riders
-sojourn_rate_drivers = 0.2  # Average sojourn time for drivers
-
+rate_riders = 0.4  
+rate_drivers = 0.3  
+sojourn_rate_riders = 0.5  
+sojourn_rate_drivers = 0.2  
 reward_value = num_nodes + 2
 
 # Generate the adjacency matrix and reward matrix
@@ -30,30 +26,15 @@ lambda_j = {f"Passive Rider Node {i}": rate_riders for i in range(num_nodes)}
 # Define abandonment rates for active types (example values)
 mu_i = {f"Active Driver Node {i}": sojourn_rate_drivers for i in range(num_nodes)}
 
-# Solve RB and QB to get the flow matrices
-#RB_flow_matrix = grb.solve_RB(rewards, lambda_i, lambda_j, mu_i)
-QB_flow_matrix = grb.solve_QB(rewards, lambda_i, lambda_j, mu_i)
+# Obtain flow matrix from QB optimization
+QB_flow_matrix = grb.solve_QB(rewards, lambda_i, lambda_j, mu_i)['flow_matrix']
 
-# Function to print the events from the event queue
-def print_events(event_queue):
-    # Display generated events in order
-    print("\nGenerated Events:")
-    while not event_queue.is_empty():
-        event = event_queue.get_next_event()
-        entity_type = event.entity.type if event.entity else 'Unknown'
-        print(f"Time: {event.time:.2f}, Event: {event.event_type}, Entity: {entity_type}, Location: {event.entity.location}")
-
-# Function to run the main simulation
+# Function to run the simulation
 def run_stuff():
-    # Setup code here (event generation, matching, etc.)
-    # event_queue should be defined here or passed in
     event_queue = eg.EventQueue()
     eg.generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time)
     
-    # Matching and other simulation processing here
-    matchers.greedy_auto_label(event_queue, rewards)
+    # Call the greedy_auto_label with the flow matrix from the QB optimization
+    matchers.greedy_auto_label(event_queue, rewards, QB_flow_matrix)
 
-
-# Now you can call run_stuff
-if __name__ == "__main__":
-    run_stuff()
+run_stuff()

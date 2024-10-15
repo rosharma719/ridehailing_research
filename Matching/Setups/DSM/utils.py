@@ -4,31 +4,68 @@ from scipy.sparse.csgraph import shortest_path
 
 # paper: https://lbsresearch.london.edu/id/eprint/2475/1/ALI2%20Dynamic%20Stochastic.pdf
 
-def obtain_tildex():
-    # solve optimization to obtain tilde{x} in (23) of the paper 
+def obtain_tildex(flow_matrix, i):
+    """
+    Extract the flow rates \tilde{x}_{i,j} for a specific node i from the flow matrix.
+    
+    :param flow_matrix: The flow matrix from the QB optimization (with flows \tilde{x}_{i,j})
+    :param i: The specific node i (Active Driver) for which to extract flows
+    :return: A vector of flows \tilde{x}_{i,j} for the given node i.
+    """
+    # Extract the flow rates for node i (row i of the flow matrix)
+    tildex_i_j = flow_matrix[i, :]
+    print("Tilde", tildex_i_j)
+    return tildex_i_j
 
-# node (type = (rider/drive, node) pair is called type)
-# \mathcal{T} <- set of types, which includes driver and rider both
-def generate_label(is_rider, node, tildex_ij, tildex_i):
-    # tildex is (\tilde{x}_{i,j})_{i,j} in the paper, assuming two-dim array
-    # If rider -> label 0 (passive, always matches the precedent driver) 
-    # else - driver -> random labeling 
-    # (in the case of *two nodes*, the type is 1 or 2 - label 2 matches to both nodes, where label 1 matches to rider of the same node only) 
-    labels = []
-    lambdap = [] # (\lambda_p^j)_j in the paper
-    for j in riders:
-        lambdap[j] = tildex_i[j] + sum of tildex_ij[i][j]
-    for j in riders:
-        labels[j] = 0 # trivial labeling
-    for i in drivers:
-        S_i = # set of js such that tildex[i][j]> 0
-        hatlambda_il = np.zeros(S_i) # \hat{\lambda}_{i,p} in the paper
-        priorities = # elements in S_i's value of tildex[i][j]/\lambdap[j]
-        # Sort S_i in descending order of priorities. For example, for node 1, S_i should be [1, 2]
-        Use Eq. (24) to obtain hatlambda_il[len(S_i)-1] # the last index 
-        for j in reversed(S_i)[1:]: 
-            induction step to obtain \hat{\lambda}_{i,len(S_i)-2}, \hat{\lambda}_{i,len(S_i)-3},...,\hat{\lambda}_{i,0}, denoted in Eq. (25) 
-        normalized_hatlambda_il # driver_s distribution of labels, normalized to sum 1 (Eq. (27))
+def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, print_stuff=True):
+    if is_rider:
+        return 0
+
+    num_riders = len(flow_matrix[0])
+    num_drivers = len(flow_matrix)
+
+    print(f"\nGenerating label for driver at node {node}")
+    print(f"tildex_i_j: {tildex_i_j}")
+
+    S_i = [j for j in range(num_riders) if tildex_i_j[j] > 0]
+    print(f"S_i: {S_i}")
+
+    if not S_i:
+        print(f"No valid matches for Driver at node {node}. Assigning default label.")
+        return -1
+
+    lambdap = {}
+    for j in S_i:
+        lambdap[j] = tildex_i_j[j] + sum(flow_matrix[i][j] for i in range(num_drivers))
+    print(f"lambdap: {lambdap}")
+
+    S_i.sort(key=lambda j: (tildex_i_j[j] / lambdap[j], random.random()), reverse=True)
+    print(f"Sorted S_i: {S_i}")
+
+    hatlambda_il = np.zeros(len(S_i))
+    hatlambda_il[-1] = tildex_i_j[S_i[-1]] / lambdap[S_i[-1]]
+    print(f"Initial hatlambda_il: {hatlambda_il}")
+
+    for idx in range(len(S_i) - 2, -1, -1):
+        j_l = S_i[idx]
+        remaining_hatlambda = sum(hatlambda_il[idx+1:])
+        hatlambda_il[idx] = max((tildex_i_j[j_l] - remaining_hatlambda) / lambdap[j_l], 0)
+        print(f"Step {idx}: hatlambda_il = {hatlambda_il}")
+
+    print(f"Final hatlambda_il before normalization: {hatlambda_il}")
+
+    sum_hatlambda = np.sum(hatlambda_il)
+    if sum_hatlambda <= 0:
+        print(f"Warning: Sum of hatlambda_il is non-positive. Assigning default label.")
+        return -1
+
+    normalized_hatlambda_il = hatlambda_il / sum_hatlambda
+    print(f"Normalized hatlambda_il: {normalized_hatlambda_il}")
+
+    chosen_label = np.random.choice(S_i, p=normalized_hatlambda_il)
+    print(f"Chosen label: {chosen_label}")
+
+    return chosen_label
 
 def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_edges=0.15):
     if num_nodes <= 0:
@@ -57,7 +94,7 @@ def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_ed
             adjacency_matrix[node2][node1] = 1
             edges_added += 1
     
-    print(adjacency_matrix)
+    print("Adjacency matrix:", adjacency_matrix)
     return adjacency_matrix
 
 def adjacency_to_rewards(adjacency_matrix, reward_value=8):
@@ -157,4 +194,3 @@ class RealizationGraph:
         print(f"Average Reward per Transaction: {average_reward:.2f}")
         print(f"Average Trip Distance: {average_trip_distance:.2f} units")
         print(f"Average Wait Time: {average_wait_time:.2f} units")
-
