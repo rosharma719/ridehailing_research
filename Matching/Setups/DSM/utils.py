@@ -4,7 +4,7 @@ from scipy.sparse.csgraph import shortest_path
 
 # paper: https://lbsresearch.london.edu/id/eprint/2475/1/ALI2%20Dynamic%20Stochastic.pdf
 
-def obtain_tildex(flow_matrix, i):
+def obtain_tildex(flow_matrix, i, print_stuff = False):
     """
     Extract the flow rates \tilde{x}_{i,j} for a specific node i from the flow matrix.
     
@@ -14,56 +14,68 @@ def obtain_tildex(flow_matrix, i):
     """
     # Extract the flow rates for node i (row i of the flow matrix)
     tildex_i_j = flow_matrix[i, :]
-    print("Tilde", tildex_i_j)
+    if print_stuff:
+        print("Tilde", tildex_i_j)
     return tildex_i_j
 
-def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, print_stuff=True):
+def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, print_stuff=False):
     if is_rider:
         return 0
 
     num_riders = len(flow_matrix[0])
     num_drivers = len(flow_matrix)
 
-    print(f"\nGenerating label for driver at node {node}")
-    print(f"tildex_i_j: {tildex_i_j}")
+    if print_stuff: 
+        print(f"\nGenerating label for driver at node {node}")
+        print(f"tildex_i_j: {tildex_i_j}")
 
     S_i = [j for j in range(num_riders) if tildex_i_j[j] > 0]
-    print(f"S_i: {S_i}")
+    if print_stuff: 
+        print(f"S_i: {S_i}")
 
     if not S_i:
-        print(f"No valid matches for Driver at node {node}. Assigning default label.")
+        if print_stuff:
+            print(f"No valid matches for Driver at node {node}. Assigning default label.")
         return -1
 
     lambdap = {}
     for j in S_i:
         lambdap[j] = tildex_i_j[j] + sum(flow_matrix[i][j] for i in range(num_drivers))
-    print(f"lambdap: {lambdap}")
+    if print_stuff: 
+        print(f"lambdap: {lambdap}")
 
     S_i.sort(key=lambda j: (tildex_i_j[j] / lambdap[j], random.random()), reverse=True)
-    print(f"Sorted S_i: {S_i}")
+    if print_stuff: 
+        print(f"Sorted S_i: {S_i}")
 
     hatlambda_il = np.zeros(len(S_i))
     hatlambda_il[-1] = tildex_i_j[S_i[-1]] / lambdap[S_i[-1]]
-    print(f"Initial hatlambda_il: {hatlambda_il}")
+    if print_stuff: 
+        print(f"Initial hatlambda_il: {hatlambda_il}")
 
     for idx in range(len(S_i) - 2, -1, -1):
         j_l = S_i[idx]
         remaining_hatlambda = sum(hatlambda_il[idx+1:])
         hatlambda_il[idx] = max((tildex_i_j[j_l] - remaining_hatlambda) / lambdap[j_l], 0)
-        print(f"Step {idx}: hatlambda_il = {hatlambda_il}")
+        if print_stuff: 
+            print(f"Step {idx}: hatlambda_il = {hatlambda_il}")
 
-    print(f"Final hatlambda_il before normalization: {hatlambda_il}")
+    if print_stuff: 
+        print(f"Final hatlambda_il before normalization: {hatlambda_il}")
 
     sum_hatlambda = np.sum(hatlambda_il)
     if sum_hatlambda <= 0:
-        print(f"Warning: Sum of hatlambda_il is non-positive. Assigning default label.")
+        if print_stuff: 
+            print(f"Warning: Sum of hatlambda_il is non-positive. Assigning default label.")
         return -1
 
     normalized_hatlambda_il = hatlambda_il / sum_hatlambda
-    print(f"Normalized hatlambda_il: {normalized_hatlambda_il}")
+    if print_stuff: 
+        print(f"Normalized hatlambda_il: {normalized_hatlambda_il}")
 
     chosen_label = np.random.choice(S_i, p=normalized_hatlambda_il)
-    print(f"Chosen label: {chosen_label}")
+    if print_stuff: 
+        print(f"Chosen label: {chosen_label}")
 
     return chosen_label
 
@@ -112,7 +124,7 @@ def adjacency_to_rewards(adjacency_matrix, reward_value=8):
         for j, passive_type in enumerate(passive_types):
             distance = int(dist_matrix[i][j])
             if distance >= 0:  # Only valid distances
-                rewards[active_type][passive_type] = max(reward_value - distance, 0)  # Subtract distance from reward
+                rewards[active_type][passive_type] = max(reward_value - 2*distance, 0)  # Subtract distance from reward
             else:
                 rewards[active_type][passive_type] = 0  # No valid path, no reward
 

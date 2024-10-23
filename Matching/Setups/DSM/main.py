@@ -13,7 +13,7 @@ rate_riders = 0.4
 rate_drivers = 0.3  
 sojourn_rate_riders = 0.5  
 sojourn_rate_drivers = 0.2  
-reward_value = num_nodes + 2
+reward_value = num_nodes + 1
 
 # Generate the adjacency matrix and reward matrix
 adj_matrix = utils.generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob, extra_edges)
