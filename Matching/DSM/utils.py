@@ -109,7 +109,7 @@ def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_ed
     print("Adjacency matrix:", adjacency_matrix)
     return adjacency_matrix
 
-def adjacency_to_rewards(adjacency_matrix, reward_value=8):
+def adjacency_to_rewards(adjacency_matrix, reward_value=8, distance_penalty=2):
     num_nodes = adjacency_matrix.shape[0]
     rewards = {}
 
@@ -123,13 +123,8 @@ def adjacency_to_rewards(adjacency_matrix, reward_value=8):
         rewards[active_type] = {}
         for j, passive_type in enumerate(passive_types):
             distance = int(dist_matrix[i][j])
-            if distance >= 0:  # Only valid distances
-                rewards[active_type][passive_type] = max(reward_value - 2*distance, 0)  # Subtract distance from reward
-            else:
-                rewards[active_type][passive_type] = 0  # No valid path, no reward
-
-    print("Rewards Matrix:")
-    print(rewards, '\n\n')
+            rewards[active_type][passive_type] = max(reward_value -distance_penalty * distance, 0)  # Subtract distance from reward
+            
     return rewards
 
 class RealizationGraph: 

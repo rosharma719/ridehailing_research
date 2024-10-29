@@ -13,11 +13,12 @@ rate_riders = 0.4
 rate_drivers = 0.3  
 sojourn_rate_riders = 0.5  
 sojourn_rate_drivers = 0.2  
-reward_value = num_nodes + 1
+reward_value = num_nodes +1
+distance_penalty = 1
 
 # Generate the adjacency matrix and reward matrix
 adj_matrix = utils.generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob, extra_edges)
-rewards = utils.adjacency_to_rewards(adj_matrix, reward_value)
+rewards = utils.adjacency_to_rewards(adj_matrix, reward_value, distance_penalty)
 
 # Define arrival rates for active and passive types based on nodes
 lambda_i = {f"Active Driver Node {i}": rate_drivers for i in range(num_nodes)}
@@ -37,4 +38,4 @@ def run_stuff():
     # Call the greedy_auto_label with the flow matrix from the QB optimization
     matchers.greedy_auto_label(event_queue, rewards, QB_flow_matrix)
 
-run_stuff()
+#run_stuff()
