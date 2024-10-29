@@ -1,5 +1,5 @@
 import utils
-import GurobiRBandQB as grb
+import GurobiQB as grb
 import numpy as np
 
 # Static parameters

@@ -1,5 +1,6 @@
 import utils
-import GurobiRBandQB as grb
+import GurobiQB as qb
+import GurobiRB as rb
 import eventgenerator as eg
 import matchers
 
@@ -28,7 +29,9 @@ lambda_j = {f"Passive Rider Node {i}": rate_riders for i in range(num_nodes)}
 mu_i = {f"Active Driver Node {i}": sojourn_rate_drivers for i in range(num_nodes)}
 
 # Obtain flow matrix from QB optimization
-QB_flow_matrix = grb.solve_QB(rewards, lambda_i, lambda_j, mu_i)['flow_matrix']
+#QB_flow_matrix = qb.solve_QB(rewards, lambda_i, lambda_j, mu_i)['flow_matrix']
+RB_flow_matrix = rb.solve_RB(rewards, lambda_i, lambda_j, mu_i)['flow_matrix']
+
 
 # Function to run the simulation
 def run_stuff():
