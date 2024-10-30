@@ -1,6 +1,5 @@
 import utils
 import GurobiQB as qb
-import GurobiRB as rb
 import eventgenerator as eg
 import matchers
 
@@ -30,15 +29,13 @@ mu_i = {f"Active Driver Node {i}": sojourn_rate_drivers for i in range(num_nodes
 
 # Obtain flow matrix from QB optimization
 QB_flow_matrix = qb.solve_QB(rewards, lambda_i, lambda_j, mu_i)['flow_matrix']
-#RB_flow_matrix = rb.solve_RB(rewards, lambda_i, lambda_j, mu_i)['flow_matrix']
-
 
 # Function to run the simulation
 def run_stuff():
     event_queue = eg.EventQueue()
     eg.generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time)
-    
+
     # Call the greedy_auto_label with the flow matrix from the QB optimization
-    matchers.greedy_auto_label(event_queue, rewards, QB_flow_matrix)
+    matchers.greedy_auto_label(event_queue, rewards, QB_flow_matrix, lambda_i, lambda_j, mu_i)
 
 run_stuff()

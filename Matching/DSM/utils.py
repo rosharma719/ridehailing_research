@@ -18,7 +18,7 @@ def obtain_tildex(flow_matrix, i, print_stuff = False):
         print("Tilde", tildex_i_j)
     return tildex_i_j
 
-def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, print_stuff=False):
+def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, lambda_i, lambda_j, mu_i, print_stuff=True):
     if is_rider:
         return 0
 
@@ -38,31 +38,47 @@ def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, pri
             print(f"No valid matches for Driver at node {node}. Assigning default label.")
         return -1
 
+    # Calculate lambda^p_j for each j in S_i
     lambdap = {}
     for j in S_i:
         lambdap[j] = tildex_i_j[j] + sum(flow_matrix[i][j] for i in range(num_drivers))
     if print_stuff: 
         print(f"lambdap: {lambdap}")
 
+    # Sort S_i in descending order based on tildex_i_j[j] / lambdap[j]
     S_i.sort(key=lambda j: (tildex_i_j[j] / lambdap[j], random.random()), reverse=True)
     if print_stuff: 
         print(f"Sorted S_i: {S_i}")
 
+    # Initialize hatlambda_il for each j in S_i
     hatlambda_il = np.zeros(len(S_i))
-    hatlambda_il[-1] = tildex_i_j[S_i[-1]] / lambdap[S_i[-1]]
-    if print_stuff: 
-        print(f"Initial hatlambda_il: {hatlambda_il}")
 
+    # Base case: Compute \hat{\lambda}_{i,|S_i|}
+    last_index = S_i[-1]
+    hatlambda_il[-1] = (mu_i + sum(lambdap[j] for j in S_i)) / lambdap[last_index] * tildex_i_j[last_index]
+
+    # Inductive step: Compute \hat{\lambda}_{i,\ell} for remaining elements
     for idx in range(len(S_i) - 2, -1, -1):
         j_l = S_i[idx]
-        remaining_hatlambda = sum(hatlambda_il[idx+1:])
-        hatlambda_il[idx] = max((tildex_i_j[j_l] - remaining_hatlambda) / lambdap[j_l], 0)
+
+        # Calculate remaining \hat{\lambda} based on previous values
+        remaining_hatlambda = sum(
+            (lambdap[S_i[q]] / (mu_i + sum(lambdap[k] for k in S_i[idx+1:])))
+            * hatlambda_il[q]
+            for q in range(idx+1, len(S_i))
+        )
+
+        # Calculate \hat{\lambda}_{i,\ell} using the induction formula
+        hatlambda_il[idx] = (mu_i + sum(lambdap[k] for k in S_i[idx:])) / lambdap[j_l] * \
+                            (tildex_i_j[j_l] - remaining_hatlambda)
+
         if print_stuff: 
             print(f"Step {idx}: hatlambda_il = {hatlambda_il}")
 
     if print_stuff: 
         print(f"Final hatlambda_il before normalization: {hatlambda_il}")
 
+    # Normalize \hat{\lambda}_{i,\ell}
     sum_hatlambda = np.sum(hatlambda_il)
     if sum_hatlambda <= 0:
         if print_stuff: 
@@ -73,11 +89,13 @@ def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, pri
     if print_stuff: 
         print(f"Normalized hatlambda_il: {normalized_hatlambda_il}")
 
+    # Sample the label based on the normalized distribution
     chosen_label = np.random.choice(S_i, p=normalized_hatlambda_il)
     if print_stuff: 
         print(f"Chosen label: {chosen_label}")
 
     return chosen_label
+
 
 def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_edges=0.15):
     if num_nodes <= 0:
