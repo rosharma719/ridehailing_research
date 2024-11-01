@@ -1,16 +1,16 @@
 from eventgenerator import *
 from utils import *
 
-def greedy_auto_label(event_queue, rewards, flow_matrix, lambda_i, lambda_j, mu_i):
+def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i):
     """
     Process events and generate labels for drivers and riders using the flow matrix \tilde{x}_{i,j}.
     
     :param event_queue: The queue of events (arrival, abandonment)
     :param rewards: The reward matrix for matches
-    :param flow_matrix: The flow matrix \tilde{x}_{i,j} from the QB optimization
+    :param results: The flow rates, abandonment rates, and unmatched rates from QB optimization
     :param lambda_i: Arrival rates for active types
     :param lambda_j: Arrival rates for passive types
-    :param mu_i: Abandonment rates for active types
+    :param mu_i: Sojourn rates for active types
     """
     
     realization_graph = RealizationGraph()
@@ -21,20 +21,14 @@ def greedy_auto_label(event_queue, rewards, flow_matrix, lambda_i, lambda_j, mu_
 
         if event.event_type == 'arrival':
             if isinstance(event.entity, Driver):
-                # Get the flow rates \tilde{x}_{i,j} for this driver node
-                tildex_i_j = obtain_tildex(flow_matrix, event.entity.location)
-
-                # Generate label for driver based on the flow matrix
+                # Generate label for driver based on the results
                 driver_label = generate_label(
                     False, 
                     event.entity.location, 
-                    flow_matrix, 
-                    tildex_i_j, 
-                    realization_graph.passive_riders, 
-                    realization_graph.active_drivers,
-                    lambda_i[event.entity.type], 
+                    results, 
+                    lambda_i, 
                     lambda_j, 
-                    mu_i[event.entity.type]
+                    mu_i
                 )
                 event.entity.label = driver_label  # Assign label to the driver
                 realization_graph.add_driver(event.entity)
@@ -77,9 +71,6 @@ def greedy_auto_label(event_queue, rewards, flow_matrix, lambda_i, lambda_j, mu_
 def remove_abandonment_event(event_queue, entity):
     """
     Remove the abandonment event of the entity (driver or rider) from the event queue if they are matched.
-    
-    :param event_queue: The event queue where events are stored
-    :param entity: The entity (driver or rider) whose abandonment event needs to be removed
     """
     updated_queue = []
     

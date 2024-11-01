@@ -18,81 +18,105 @@ def obtain_tildex(flow_matrix, i, print_stuff = False):
         print("Tilde", tildex_i_j)
     return tildex_i_j
 
-def generate_label(is_rider, node, flow_matrix, tildex_i_j, riders, drivers, lambda_i, lambda_j, mu_i, print_stuff=True):
+
+def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=True):
     if is_rider:
         return 0
 
-    num_riders = len(flow_matrix[0])
-    num_drivers = len(flow_matrix)
-
-    if print_stuff: 
-        print(f"\nGenerating label for driver at node {node}")
-        print(f"tildex_i_j: {tildex_i_j}")
-
+    flow_matrix = results['flow_matrix']
+    abandonment_rates = results['abandonment']
+    passive_unmatched = results['passive_unmatched']
+    num_riders = flow_matrix.shape[1]
+    tildex_i_j = flow_matrix[node, :]
     S_i = [j for j in range(num_riders) if tildex_i_j[j] > 0]
-    if print_stuff: 
-        print(f"S_i: {S_i}")
-
+    
     if not S_i:
-        if print_stuff:
-            print(f"No valid matches for Driver at node {node}. Assigning default label.")
         return -1
 
-    # Calculate lambda^p_j for each j in S_i
+    driver_name = f"Active Driver Node {node}"
+    x_a_i = abandonment_rates[driver_name]
+    sojourn_rate = mu_i[driver_name]
+
     lambdap = {}
     for j in S_i:
-        lambdap[j] = tildex_i_j[j] + sum(flow_matrix[i][j] for i in range(num_drivers))
-    if print_stuff: 
-        print(f"lambdap: {lambdap}")
+        rider_name = f"Passive Rider Node {j}"
+        x_j = passive_unmatched[rider_name]
+        lambdap_j = x_j + sum(flow_matrix[:, j])
+        lambdap[j] = lambdap_j
 
-    # Sort S_i in descending order based on tildex_i_j[j] / lambdap[j]
-    S_i.sort(key=lambda j: (tildex_i_j[j] / lambdap[j], random.random()), reverse=True)
-    if print_stuff: 
-        print(f"Sorted S_i: {S_i}")
+    S_i.sort(key=lambda j: tildex_i_j[j] / lambdap[j], reverse=True)
 
-    # Initialize hatlambda_il for each j in S_i
     hatlambda_il = np.zeros(len(S_i))
+    sum_lambdap_Si = sum(lambdap[j] for j in S_i)
 
-    # Base case: Compute \hat{\lambda}_{i,|S_i|}
-    last_index = S_i[-1]
-    hatlambda_il[-1] = (mu_i + sum(lambdap[j] for j in S_i)) / lambdap[last_index] * tildex_i_j[last_index]
+    L = len(S_i) - 1
+    j_L = S_i[L]
+    numerator = sojourn_rate + sum_lambdap_Si
+    denominator = lambdap[j_L]
+    hatlambda_il[L] = (numerator / denominator) * tildex_i_j[j_L]
+    
+    if print_stuff:
+        print(f"Base Case - L = {L}, j_L = {j_L}")
+        print(f"  sojourn_rate: {sojourn_rate}")
+        print(f"  sum_lambdap_Si: {sum_lambdap_Si}")
+        print(f"  numerator: {numerator}")
+        print(f"  denominator: {denominator}")
+        print(f"  hatlambda_il[{L}]: {hatlambda_il[L]}")
 
-    # Inductive step: Compute \hat{\lambda}_{i,\ell} for remaining elements
-    for idx in range(len(S_i) - 2, -1, -1):
+    tolerance = 1e-8
+    for idx in range(L - 1, -1, -1):
         j_l = S_i[idx]
+        sum_lambdap_k = sum(lambdap[S_i[k]] for k in range(idx, L + 1))
+        sum_lambdap_m = sum(lambdap[S_i[k]] for k in range(idx + 1, L + 1))
 
-        # Calculate remaining \hat{\lambda} based on previous values
-        remaining_hatlambda = sum(
-            (lambdap[S_i[q]] / (mu_i + sum(lambdap[k] for k in S_i[idx+1:])))
-            * hatlambda_il[q]
-            for q in range(idx+1, len(S_i))
-        )
+        numerator = sojourn_rate + sum_lambdap_k
+        denominator = lambdap[j_l]
+        inner_sum = 0
 
-        # Calculate \hat{\lambda}_{i,\ell} using the induction formula
-        hatlambda_il[idx] = (mu_i + sum(lambdap[k] for k in S_i[idx:])) / lambdap[j_l] * \
-                            (tildex_i_j[j_l] - remaining_hatlambda)
+        for m in range(idx + 1, L + 1):
+            sum_lambdap_m_sub = sum(lambdap[S_i[k]] for k in range(m, L + 1))
+            denominator_m = sojourn_rate + sum_lambdap_m_sub
+            fraction = (lambdap[S_i[m]] / denominator_m) * hatlambda_il[m]
 
-        if print_stuff: 
-            print(f"Step {idx}: hatlambda_il = {hatlambda_il}")
+            
+            print("NUMERATOR", lambdap[S_i[m]]*hatlambda_il[m])
+            print("DENOMINATOR", denominator_m)
 
-    if print_stuff: 
-        print(f"Final hatlambda_il before normalization: {hatlambda_il}")
+            fraction = 0 if abs(fraction) < tolerance else fraction
+            inner_sum += fraction
 
-    # Normalize \hat{\lambda}_{i,\ell}
+            if print_stuff:
+                print(f"  Inner Loop - idx = {idx}, m = {m}")
+                print(f"    sum_lambdap_m_sub: {sum_lambdap_m_sub}")
+                print(f"    denominator_m: {denominator_m}")
+                print(f"    fraction: {fraction}")
+                print(f"    inner_sum: {inner_sum}")
+
+        hatlambda_il[idx] = (numerator / denominator) * (tildex_i_j[j_l] - inner_sum)
+        hatlambda_il[idx] = 0 if abs(hatlambda_il[idx]) < tolerance else hatlambda_il[idx]
+        
+        if print_stuff:
+            print(f"Inductive Step - idx = {idx}, j_l = {j_l}")
+            print(f"  sum_lambdap_k: {sum_lambdap_k}")
+            print(f"  numerator: {numerator}")
+            print(f"  denominator: {denominator}")
+            print(f"  tildex_i_j[j_l]: {tildex_i_j[j_l]}")
+            print(f"  inner_sum: {inner_sum}")
+            print(f"  hatlambda_il[{idx}]: {hatlambda_il[idx]}")
+
+    if np.any(hatlambda_il < 0):
+        if print_stuff:
+            print("Negative probabilities encountered in hatlambda_il:", hatlambda_il)
+        raise ValueError("Calculated negative probabilities in label generation.")
+
     sum_hatlambda = np.sum(hatlambda_il)
     if sum_hatlambda <= 0:
-        if print_stuff: 
-            print(f"Warning: Sum of hatlambda_il is non-positive. Assigning default label.")
+        if print_stuff:
+            print("Sum of probabilities is non-positive, defaulting label.")
         return -1
 
     normalized_hatlambda_il = hatlambda_il / sum_hatlambda
-    if print_stuff: 
-        print(f"Normalized hatlambda_il: {normalized_hatlambda_il}")
-
-    # Sample the label based on the normalized distribution
     chosen_label = np.random.choice(S_i, p=normalized_hatlambda_il)
-    if print_stuff: 
-        print(f"Chosen label: {chosen_label}")
 
     return chosen_label
 
