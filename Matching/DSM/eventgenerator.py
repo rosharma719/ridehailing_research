@@ -43,6 +43,12 @@ class EventQueue:
 
     def is_empty(self):
         return len(self.queue) == 0
+    
+    def clone(self):
+        new_queue = EventQueue()
+        new_queue.queue = list(self.queue)  # Copy the heap
+        heapq.heapify(new_queue.queue)  # Re-heapify the copied queue
+        return new_queue
 
 def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time):
     """

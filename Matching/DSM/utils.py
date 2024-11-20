@@ -19,7 +19,7 @@ def obtain_tildex(flow_matrix, i, print_stuff = False):
     return tildex_i_j
 
 
-def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=True):
+def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=False):
     if is_rider:
         return 0
 
@@ -63,30 +63,32 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
         print(f"  denominator: {denominator}")
         print(f"  hatlambda_il[{L}]: {hatlambda_il[L]}")
 
-    tolerance = 1e-8
+    tolerance = 1e-6
     for idx in range(L - 1, -1, -1):
         j_l = S_i[idx]
         sum_lambdap_k = sum(lambdap[S_i[k]] for k in range(idx, L + 1))
-        sum_lambdap_m = sum(lambdap[S_i[k]] for k in range(idx + 1, L + 1))
 
         numerator = sojourn_rate + sum_lambdap_k
         denominator = lambdap[j_l]
         inner_sum = 0
 
-        for m in range(idx + 1, L + 1):
-            sum_lambdap_m_sub = sum(lambdap[S_i[k]] for k in range(m, L + 1))
-            denominator_m = sojourn_rate + sum_lambdap_m_sub
-            fraction = (lambdap[S_i[m]] / denominator_m) * hatlambda_il[m]
-
+        for m_pos in range(idx + 1, L + 1):  
+            m = S_i[m_pos]
             
-            print("NUMERATOR", lambdap[S_i[m]]*hatlambda_il[m])
-            print("DENOMINATOR", denominator_m)
+            # Compatibility set S_i[m]
+            compatibility_set = [j for j in S_i]  
+            
+            sum_lambdap_m_sub = sum(lambdap[j] for j in compatibility_set)
+
+            denominator_m = sojourn_rate + sum_lambdap_m_sub
+            fraction = (lambdap[m] / denominator_m) * hatlambda_il[m_pos]
 
             fraction = 0 if abs(fraction) < tolerance else fraction
             inner_sum += fraction
 
             if print_stuff:
-                print(f"  Inner Loop - idx = {idx}, m = {m}")
+                print(f"  Inner Loop - idx = {idx}, m_pos = {m_pos} (node {m})")
+                print(f"    compatibility_set: {compatibility_set}")
                 print(f"    sum_lambdap_m_sub: {sum_lambdap_m_sub}")
                 print(f"    denominator_m: {denominator_m}")
                 print(f"    fraction: {fraction}")
@@ -116,6 +118,9 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
         return -1
 
     normalized_hatlambda_il = hatlambda_il / sum_hatlambda
+    if print_stuff:
+        print("Label distribution (normalized probabilities):", normalized_hatlambda_il)
+
     chosen_label = np.random.choice(S_i, p=normalized_hatlambda_il)
 
     return chosen_label
@@ -223,6 +228,7 @@ class RealizationGraph:
 
             return matched_driver
         return None
+    
 
     def print_summary(self):
         if self.num_riders_matched > 0:
@@ -243,3 +249,30 @@ class RealizationGraph:
         print(f"Average Reward per Transaction: {average_reward:.2f}")
         print(f"Average Trip Distance: {average_trip_distance:.2f} units")
         print(f"Average Wait Time: {average_wait_time:.2f} units")
+        
+    def get_waiting_counts_by_node(self):
+        """
+        Returns a dictionary with the counts of riders and drivers waiting at each node.
+        """
+        counts = {}
+        for rider in self.passive_riders:
+            counts.setdefault(rider.location, {"riders": 0, "drivers": 0})
+            counts[rider.location]["riders"] += 1
+
+        for driver in self.active_drivers:
+            counts.setdefault(driver.location, {"riders": 0, "drivers": 0})
+            counts[driver.location]["drivers"] += 1
+
+        return counts
+
+    def get_waiting_riders_at_node(self, node):
+        """
+        Returns a list of all riders waiting at a specific node.
+        """
+        return [rider for rider in self.passive_riders if rider.location == node]
+
+    def get_waiting_drivers_at_node(self, node):
+        """
+        Returns a list of all drivers waiting at a specific node.
+        """
+        return [driver for driver in self.active_drivers if driver.location == node]
