@@ -34,11 +34,13 @@ def run_stuff():
     event_queue = eg.EventQueue()
     eg.generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time)
 
-    # Clone the event queue for the second simulation
+    # Clone the event queue for multiple simulations
     event_queue_2 = event_queue.clone()
+    event_queue_3 = event_queue.clone()
 
-    # Call the greedy_auto_label with the full results from the QB optimization
+    # Call the greedy_auto_label algorithms
     matchers.greedy_auto_label(event_queue, rewards, QB_results, lambda_i, lambda_j, mu_i)
-    matchers.greedy_auto_label_floor(event_queue_2, rewards, QB_results, lambda_i, lambda_j, mu_i)
+    matchers.greedy_auto_label_nonperish(event_queue_2, rewards, QB_results, lambda_i, lambda_j, mu_i)
+    matchers.greedy_auto_label_nonperish_floor(event_queue_3, rewards, QB_results, lambda_i, lambda_j, mu_i, thickness_floor=1)
 
 run_stuff()
