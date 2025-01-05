@@ -4,16 +4,16 @@ import eventgenerator as eg
 import matchers
 
 # Parameters
-num_nodes = 4
+num_nodes = 2
 skip_prob = 0  
 extra_edges = 0  
 simulation_time = 100  
 
 rate_riders = 0.4  
 rate_drivers = 0.3  
-sojourn_rate_riders = 0.1  
-sojourn_rate_drivers = 0.1  
-reward_value = num_nodes + 1
+sojourn_rate_riders = 0.5  
+sojourn_rate_drivers = 0.2  
+reward_value = num_nodes + 2
 distance_penalty = 1
 
 # Generate the adjacency matrix and reward matrix
@@ -39,8 +39,9 @@ def run_stuff():
     event_queue_3 = event_queue.clone()
 
     # Call the greedy_auto_label algorithms
-    matchers.greedy_auto_label(event_queue, rewards, QB_results, lambda_i, lambda_j, mu_i)
-    matchers.greedy_auto_label_nonperish(event_queue_2, rewards, QB_results, lambda_i, lambda_j, mu_i)
-    matchers.greedy_auto_label_nonperish_floor(event_queue_3, rewards, QB_results, lambda_i, lambda_j, mu_i, thickness_floor=1)
+    matchers.greedy_auto_label(event_queue, rewards, QB_results, lambda_i, lambda_j, mu_i, adj_matrix)
+    matchers.greedy_auto_label_nonperish(event_queue_2, rewards, QB_results, lambda_i, lambda_j, mu_i, adj_matrix)
+    matchers.greedy_auto_label_nonperish_floor(event_queue_3, rewards, QB_results, lambda_i, lambda_j, mu_i, thickness_floor=1, adjacency_matrix=adj_matrix)
+
 
 run_stuff()

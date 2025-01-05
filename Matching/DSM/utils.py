@@ -20,8 +20,15 @@ def obtain_tildex(flow_matrix, i, print_stuff = False):
 
 
 def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=False):
+    """
+    Generate a label for a driver and return a compatibility set mapping.
+
+    :return: A tuple (label, label_to_set_map), where:
+             - label: The assigned label for the driver.
+             - label_to_set_map: A dictionary mapping each possible label to its compatibility set.
+    """
     if is_rider:
-        return 0
+        return 0, {}
 
     flow_matrix = results['flow_matrix']
     abandonment_rates = results['abandonment']
@@ -31,7 +38,7 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
     S_i = [j for j in range(num_riders) if tildex_i_j[j] > 0]
     
     if not S_i:
-        return -1
+        return -1, {}
 
     driver_name = f"Active Driver Node {node}"
     x_a_i = abandonment_rates[driver_name]
@@ -115,7 +122,7 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
     if sum_hatlambda <= 0:
         if print_stuff:
             print("Sum of probabilities is non-positive, defaulting label.")
-        return -1
+        return -1, {}
 
     normalized_hatlambda_il = hatlambda_il / sum_hatlambda
     if print_stuff:
@@ -123,7 +130,12 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
 
     chosen_label = np.random.choice(S_i, p=normalized_hatlambda_il)
 
-    return chosen_label
+    # Generate label-to-compatibility set mapping
+    label_to_set_map = {j: [j] for j in S_i}
+    label_to_set_map[-1] = []  # Label -1 corresponds to no compatibility.
+
+    return chosen_label, label_to_set_map
+
 
 
 def generate_imperfect_grid_adjacency_matrix(num_nodes, skip_prob=0.15, extra_edges=0.15):
@@ -209,7 +221,7 @@ class RealizationGraph:
             print(f"Rider removed at location {rider.location}")
         self.passive_riders.remove(rider)
 
-    def find_driver_for_rider(self, rider, rewards):
+    def find_driver_for_rider(self, rider, rewards, distance_matrix):
         if self.active_drivers:
             matched_driver = self.active_drivers.pop(0)  # Pop the first available driver
 

@@ -1,8 +1,10 @@
 from eventgenerator import * 
 from utils import *
 
+from scipy.sparse.csgraph import shortest_path
 
-def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i):
+
+def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix):
     """
     Process events and generate labels for drivers and riders using the flow matrix \tilde{x}_{i,j}.
     
@@ -12,8 +14,11 @@ def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i):
     :param lambda_i: Arrival rates for active types
     :param lambda_j: Arrival rates for passive types
     :param mu_i: Sojourn rates for active types
+    :param adjacency_matrix: Adjacency matrix representing the graph
     """
-    
+    # Compute the shortest path distance matrix
+    distance_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
+
     realization_graph = RealizationGraph()
     printStuff = False
 
@@ -22,16 +27,17 @@ def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i):
 
         if event.event_type == 'arrival':
             if isinstance(event.entity, Driver):
-                # Generate label for driver based on the results
-                driver_label = generate_label(
-                    False, 
-                    event.entity.location, 
-                    results, 
-                    lambda_i, 
-                    lambda_j, 
+                # Generate label and compatibility sets for driver
+                driver_label, label_to_set_map = generate_label(
+                    False,
+                    event.entity.location,
+                    results,
+                    lambda_i,
+                    lambda_j,
                     mu_i
                 )
                 event.entity.label = driver_label  # Assign label to the driver
+                event.entity.compatibility_set = label_to_set_map.get(driver_label, [])  # Assign compatibility set
                 realization_graph.add_driver(event.entity)
 
             elif isinstance(event.entity, Rider):
@@ -40,7 +46,7 @@ def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i):
                 realization_graph.add_rider(event.entity)
 
                 # Try to find a match for the rider
-                matched_driver = realization_graph.find_driver_for_rider(event.entity, rewards)
+                matched_driver = realization_graph.find_driver_for_rider(event.entity, rewards, distance_matrix)
 
                 if matched_driver:
                     # Remove the matched rider and driver from the system
@@ -69,11 +75,15 @@ def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i):
     print("Event processing completed.")
     realization_graph.print_summary()
 
-def greedy_auto_label_nonperish(event_queue, rewards, results, lambda_i, lambda_j, mu_i):
+
+def greedy_auto_label_nonperish(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix):
     """
     Process events and generate labels for drivers and riders using the flow matrix \tilde{x}_{i,j}.
     Riders wait at their node until a driver arrives, matching to the first available driver at the same node.
     """
+    # Compute the shortest path distance matrix
+    distance_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
+
     realization_graph = RealizationGraph()
     printStuff = False
 
@@ -82,8 +92,8 @@ def greedy_auto_label_nonperish(event_queue, rewards, results, lambda_i, lambda_
 
         if event.event_type == 'arrival':
             if isinstance(event.entity, Driver):
-                # Generate label for driver based on the results
-                driver_label = generate_label(
+                # Generate label and compatibility sets for driver
+                driver_label, label_to_set_map = generate_label(
                     False,
                     event.entity.location,
                     results,
@@ -92,6 +102,7 @@ def greedy_auto_label_nonperish(event_queue, rewards, results, lambda_i, lambda_
                     mu_i
                 )
                 event.entity.label = driver_label  # Assign label to the driver
+                event.entity.compatibility_set = label_to_set_map.get(driver_label, [])  # Assign compatibility set
                 realization_graph.add_driver(event.entity)
 
                 # Check if there's a waiting rider at the driver's node
@@ -103,7 +114,7 @@ def greedy_auto_label_nonperish(event_queue, rewards, results, lambda_i, lambda_
 
                     # Calculate match stats (wait time, distance, reward)
                     wait_time = event.entity.arrival_time - matched_rider.arrival_time
-                    trip_distance = abs(event.entity.location - matched_rider.location)
+                    trip_distance = distance_matrix[event.entity.location, matched_rider.location]  # Use distance matrix
                     reward = rewards[event.entity.type][matched_rider.type]
 
                     realization_graph.total_wait_time += wait_time
@@ -126,8 +137,6 @@ def greedy_auto_label_nonperish(event_queue, rewards, results, lambda_i, lambda_
                 event.entity.label = 0
                 realization_graph.add_rider(event.entity)
 
-                # Riders don't perish instantly—drivers arriving later may match them
-
         elif event.event_type == 'abandonment':
             if isinstance(event.entity, Driver):
                 if event.entity in realization_graph.active_drivers:
@@ -144,13 +153,15 @@ def greedy_auto_label_nonperish(event_queue, rewards, results, lambda_i, lambda_
     realization_graph.print_summary()
 
 
-
-def greedy_auto_label_nonperish_floor(event_queue, rewards, results, lambda_i, lambda_j, mu_i, thickness_floor):
+def greedy_auto_label_nonperish_floor(event_queue, rewards, results, lambda_i, lambda_j, mu_i, thickness_floor, adjacency_matrix):
     """
-    Process events and generate labels for drivers and riders using the flow matrix \tilde{x}_{i,j}.
+    Process events and generate labels for drivers and riders using the flow matrix.
     Riders wait at their node until a driver arrives, matching to the first available driver
     only if there are more than the thickness_floor drivers at the node.
     """
+    # Compute the shortest path distance matrix
+    distance_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
+
     realization_graph = RealizationGraph()
     printStuff = False
 
@@ -159,8 +170,8 @@ def greedy_auto_label_nonperish_floor(event_queue, rewards, results, lambda_i, l
 
         if event.event_type == 'arrival':
             if isinstance(event.entity, Driver):
-                # Generate label for driver based on the results
-                driver_label = generate_label(
+                # Generate label and compatibility sets for driver
+                driver_label, label_to_set_map = generate_label(
                     False,
                     event.entity.location,
                     results,
@@ -169,19 +180,22 @@ def greedy_auto_label_nonperish_floor(event_queue, rewards, results, lambda_i, l
                     mu_i
                 )
                 event.entity.label = driver_label  # Assign label to the driver
+                event.entity.compatibility_set = label_to_set_map.get(driver_label, [])  # Assign compatibility set
                 realization_graph.add_driver(event.entity)
 
                 # Check if there's a waiting rider at the driver's node
                 waiting_riders = realization_graph.get_waiting_riders_at_node(event.entity.location)
                 waiting_drivers = realization_graph.get_waiting_drivers_at_node(event.entity.location)
 
-                # Only match if there are more than thickness_floor drivers at the node
+                # Only match if the number of waiting drivers exceeds the threshold
                 if len(waiting_drivers) > thickness_floor and waiting_riders:
                     matched_rider = waiting_riders[0]  # Match the first waiting rider
                     realization_graph.remove_driver(event.entity)
-                    realization_graph.remove_rider
+                    realization_graph.remove_rider(matched_rider)
+
+                    # Calculate match stats (wait time, distance, reward)
                     wait_time = event.entity.arrival_time - matched_rider.arrival_time
-                    trip_distance = abs(event.entity.location - matched_rider.location)
+                    trip_distance = distance_matrix[event.entity.location, matched_rider.location]
                     reward = rewards[event.entity.type][matched_rider.type]
 
                     realization_graph.total_wait_time += wait_time
@@ -197,30 +211,24 @@ def greedy_auto_label_nonperish_floor(event_queue, rewards, results, lambda_i, l
                     if printStuff:
                         print(f"Matched Driver at Node {event.entity.location} with Rider at Node {matched_rider.location}")
                 elif printStuff:
-                    print(f"Driver at Node {event.entity.location} waiting. Not enough drivers (floor: {thickness_floor}).")
+                    print(f"Driver at Node {event.entity.location} waiting. Not enough drivers (threshold: {thickness_floor}).")
 
             elif isinstance(event.entity, Rider):
                 # Riders are trivially passive, so no need to call generate_label
                 event.entity.label = 0
                 realization_graph.add_rider(event.entity)
 
-                # Riders don't perish instantly—drivers arriving later may match them
-
         elif event.event_type == 'abandonment':
+            # Handle abandonment of drivers or riders
             if isinstance(event.entity, Driver):
                 if event.entity in realization_graph.active_drivers:
                     realization_graph.remove_driver(event.entity)
-                    if printStuff:
-                        print(f"Driver abandoned at Node {event.entity.location}")
             elif isinstance(event.entity, Rider):
                 if event.entity in realization_graph.passive_riders:
                     realization_graph.remove_rider(event.entity)
-                    if printStuff:
-                        print(f"Rider abandoned at Node {event.entity.location}")
 
     print("Event processing completed.")
     realization_graph.print_summary()
-
 
 
 
