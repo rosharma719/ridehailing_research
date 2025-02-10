@@ -83,7 +83,7 @@ def obtain_tildex(flow_matrix, i, print_stuff = False):
     return tildex_i_j
 
 
-def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=False):
+def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=True):
     if is_rider:
         if print_stuff:
             print(f"Node {node} is a rider. Returning label 0.")
@@ -93,7 +93,8 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
     passive_unmatched = results['passive_unmatched']
     num_riders = flow_matrix.shape[1]
 
-
+    if print_stuff:
+        print(f"\nNODE {node} arrives")
 
     tildex_i_j = flow_matrix[node, :]
     S_i = [j for j in range(num_riders) if tildex_i_j[j] > 1e-8]
@@ -105,7 +106,7 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
     if not S_i:
         if print_stuff:
             print(f"No compatibility set found for Node {node}. Returning -1.")
-        return -1, {}
+        return -1, {}   
 
     driver_name = f"Active Driver Node {node}"
     sojourn_rate = mu_i[driver_name]
@@ -131,10 +132,12 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
     numerator = sojourn_rate + sum_lambdap_Si
     denominator = lambdap[j_L]
     hatlambda_il[L] = (numerator / denominator) * tildex_i_j[j_L]
+
     if print_stuff:
         print(f"Base Case (L = {L}, j_L = {j_L}):")
         print(f"  Numerator: {numerator}")
         print(f"  Denominator: {denominator}")
+        print(f"Tilde xi, sigma L: {tildex_i_j[j_L]}")
         print(f"  Hatlambda_il[{L}]: {hatlambda_il[L]}")
 
     # Recursive computation: Compute hatlambda_il for l ≤ |S_i| - 1 (Equation 25)
@@ -144,40 +147,44 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
         denominator = lambdap[j_l]
 
         # Obtain the flow for the NEXT index using the provided getter
-        x_flow = obtain_tildex(flow_matrix, node)[S_i[idx + 1]]
-
-        # Directly use the residual flow from the flow matrix
-        residual_flow = x_flow
+        previous_flow = obtain_tildex(flow_matrix, node)[S_i[idx + 1]] if idx < L else 0.0
+        current_flow = obtain_tildex(flow_matrix, node)[j_l]
 
         # Compute hatlambda_il using the flow directly
-        hatlambda_il[idx] = (numerator / denominator) * (obtain_tildex(flow_matrix, node)[S_i[idx]]-residual_flow)
+        hatlambda_il[idx] = (numerator / denominator) * (current_flow - previous_flow)
 
         if print_stuff:
             print(f"Recursive Case (idx = {idx}, j_l = {j_l}):")
             print(f"  Numerator: {numerator}")
             print(f"  Denominator: {denominator}")
-            print(f"  Residual Flow: {residual_flow}")
+            print(f"  Current flow: {current_flow}")
+            print(f"  Residual Flow: {previous_flow}")
             print(f"  Hatlambda_il[{idx}]: {hatlambda_il[idx]}")
 
-    # Normalize probabilities (Ensure ∑ hatlambda_il = 1)
+    # Normalize probabilities (Ensures ∑ hatlambda_il = 1)
     sum_hatlambda = np.sum(hatlambda_il)
-    if sum_hatlambda <= 0:
-        if print_stuff:
-            print(f"Sum of Hatlambda is non-positive for Node {node}. Returning -1.")
-        return -1, {}
+    normalized_hatlambda_il = hatlambda_il / sum_hatlambda 
 
-    normalized_hatlambda_il = hatlambda_il / sum_hatlambda
     if print_stuff:
         print(f"Normalized Hatlambda_il for Node {node}: {normalized_hatlambda_il}")
 
     # Choose a label
-    chosen_label = np.random.choice(S_i, p=normalized_hatlambda_il)
+    chosen_label_index = np.random.choice(range(len(S_i)), p=normalized_hatlambda_il)
+    chosen_label = S_i[chosen_label_index]  # Ensure correct mapping
+
     if print_stuff:
         print(f"Chosen Label for Node {node}: {chosen_label}")
 
-    # Create compatibility mapping
-    label_to_set_map = {j: [j] for j in S_i}
+    # **Corrected Compatibility Mapping**
+    label_to_set_map = {}
+    for idx in range(len(S_i)):
+        label_to_set_map[S_i[idx]] = S_i[: idx + 1]  # Start with full set and remove elements stepwise
+
     label_to_set_map[-1] = []
+
+    if print_stuff:
+        print("LABEL TO SET MAP")
+        print(label_to_set_map)
 
     # Print the label's compatibility set
     if print_stuff:

@@ -6,14 +6,14 @@ from offline_solver import solve_offline_optimal_with_markov
 
 # ======= USER-SPECIFIED TOPOLOGY MODE =======
 topology_mode = "grid"  # Choose from: "grid", "ring", "both"
-use_divided_rewards = False  # True → divided_adjacency_to_rewards, False → adjacency_to_rewards
+use_divided_rewards = True  # True → divided_adjacency_to_rewards, False → adjacency_to_rewards
 
 # ======= PARAMETERS =======
-num_nodes = 2
+num_nodes = 5
 simulation_time = 20
 
 rate_riders = 0.4  
-rate_drivers = 0.3
+rate_drivers = 0.5
 sojourn_rate_riders = 0.5
 sojourn_rate_drivers = 0.2 
 reward_value = num_nodes + 2
@@ -27,7 +27,7 @@ ring_denom = 2  # Ring topology denominator multiplier
 grid_matrix = utils.generate_grid_adjacency_matrix(num_nodes)
 ring_matrix = utils.generate_ring_adjacency_matrix(num_nodes)
 
-#print("\nGRID TOPOLOGY\n", grid_matrix)
+print("\nGRID TOPOLOGY\n", grid_matrix)
 #print("\nRING TOPOLOGY\n", ring_matrix)
 
 # ======= CHOOSE REWARD STRUCTURE BASED ON SWITCHER =======
