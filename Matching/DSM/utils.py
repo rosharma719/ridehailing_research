@@ -93,6 +93,8 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
     passive_unmatched = results['passive_unmatched']
     num_riders = flow_matrix.shape[1]
 
+
+
     tildex_i_j = flow_matrix[node, :]
     S_i = [j for j in range(num_riders) if tildex_i_j[j] > 1e-8]
 

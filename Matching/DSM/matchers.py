@@ -121,6 +121,7 @@ def greedy_matcher(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adja
 
 def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix):
     
+
     # Compute the shortest path distance matrix
     distance_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
 
