@@ -2,6 +2,24 @@ import heapq
 import numpy as np
 import random
 
+
+def remove_abandonment_event(event_queue, entity):
+    """
+    Remove the abandonment event of the entity (driver or rider) from the event queue if they are matched.
+    """
+    updated_queue = []
+    
+    while not event_queue.is_empty():
+        event = event_queue.get_next_event()
+        if event.event_type == 'abandonment' and event.entity == entity:
+            continue
+        updated_queue.append(event)
+
+    # Rebuild the event queue
+    for event in updated_queue:
+        event_queue.add_event(event)
+
+
 class Rider:
     def __init__(self, arrival_time, location, sojourn_time):
         self.arrival_time = arrival_time
@@ -10,15 +28,34 @@ class Rider:
         self.abandonment_time = arrival_time + sojourn_time  # Time when the rider will abandon if unmatched
         self.type = f"Passive Rider Node {location}"  # Match the type format to the rewards dictionary
         self.label = None  # Will be set to 'active' or 'passive'
+    
+    def __hash__(self):
+        return hash((round(self.arrival_time, 6), self.location, round(self.sojourn_time, 6)))
+
+    def __eq__(self, other):
+        return (round(self.arrival_time, 6), self.location, round(self.sojourn_time, 6)) == \
+               (round(other.arrival_time, 6), other.location, round(other.sojourn_time, 6))
+
+
 
 class Driver:
-    def __init__(self, arrival_time, location, sojourn_time):
+    def __init__(self, arrival_time, location, sojourn_time, num_nodes):
         self.arrival_time = arrival_time
         self.location = location
         self.sojourn_time = sojourn_time  # Time the driver is willing to wait
         self.abandonment_time = arrival_time + sojourn_time  # Time when the driver will abandon if unmatched
         self.type = f"Active Driver Node {location}"  # Match the type format to the rewards dictionary
         self.label = None  # Will be set to 'active' or 'passive'
+        self.compatibility_set = list(range(num_nodes))  # Compatible with all nodes
+
+    def __hash__(self):
+        return hash((round(self.arrival_time, 6), self.location, round(self.sojourn_time, 6)))
+
+    def __eq__(self, other):
+        return (round(self.arrival_time, 6), self.location, round(self.sojourn_time, 6)) == \
+               (round(other.arrival_time, 6), other.location, round(other.sojourn_time, 6))
+    
+
 
 # Event Class with Detailed Event Types
 class Event:
@@ -49,6 +86,17 @@ class EventQueue:
         new_queue.queue = list(self.queue)  # Copy the heap
         heapq.heapify(new_queue.queue)  # Re-heapify the copied queue
         return new_queue
+    
+    def print_queue(self):
+            """
+            Print the details of all events in the queue in a human-readable format.
+            """
+            print("Current Event Queue:")
+            for event in sorted(self.queue, key=lambda e: e.time):  # Sort by event time for readability
+                entity_type = type(event.entity).__name__ if event.entity else "None"
+                entity_details = f"Type: {entity_type}, Location: {getattr(event.entity, 'location', 'N/A')}, Arrival: {getattr(event.entity, 'arrival_time', 'N/A')}" if event.entity else "None"
+                print(f"Time: {event.time:.6f}, Event Type: {event.event_type}, Entity: [{entity_details}]")
+            print("\n")
 
 def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time):
     """
@@ -71,9 +119,9 @@ def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders,
         
         while node_time < simulation_time:
             # Generate the next rider arrival time for this node
-            next_rider_time = node_time + np.random.exponential(1 / rate_riders)
+            next_rider_time = round(node_time + np.random.exponential(1 / rate_riders), 6)
             if next_rider_time < simulation_time:
-                sojourn_time = np.random.exponential(1 / sojourn_rate_riders)
+                sojourn_time = round(np.random.exponential(1 / sojourn_rate_riders), 6)
 
                 rider = Rider(next_rider_time, node, sojourn_time)
                 event_queue.add_event(Event(next_rider_time, 'arrival', rider))
@@ -84,10 +132,11 @@ def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders,
                     event_queue.add_event(Event(abandonment_time, 'abandonment', rider))
 
             # Generate the next driver arrival time for this node
-            next_driver_time = node_time + np.random.exponential(1 / rate_drivers)
+            next_driver_time = round(node_time + np.random.exponential(1 / rate_drivers), 6)
+
             if next_driver_time < simulation_time:
-                sojourn_time = np.random.exponential(1 / sojourn_rate_drivers)
-                driver = Driver(next_driver_time, node, sojourn_time)
+                sojourn_time = round(np.random.exponential(1 / sojourn_rate_drivers), 6)
+                driver = Driver(next_driver_time, node, sojourn_time, num_nodes)
                 event_queue.add_event(Event(next_driver_time, 'arrival', driver))
 
                 # Add the abandonment event if it happens within the simulation time

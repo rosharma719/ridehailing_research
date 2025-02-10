@@ -1,26 +1,131 @@
-from eventgenerator import * 
+from eventgenerator import *
 from utils import *
 
 from scipy.sparse.csgraph import shortest_path
 
+def greedy_matcher(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix):
+    print_stuff = False
+    """
+    Greedy matcher that pairs riders with drivers as soon as they arrive,
+    selecting the highest-reward rider across all locations.
 
-def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix):
+    :param event_queue: The queue of events (arrival, abandonment).
+    :param rewards: The reward matrix for matches.
+    :param results: Results from QB optimization.
+    :param lambda_i: Arrival rates for active types.
+    :param lambda_j: Arrival rates for passive types.
+    :param mu_i: Abandonment rates for active types.
+    :param adjacency_matrix: Adjacency matrix representing the graph.
     """
-    Process events and generate labels for drivers and riders using the flow matrix \tilde{x}_{i,j}.
-    
-    :param event_queue: The queue of events (arrival, abandonment)
-    :param rewards: The reward matrix for matches
-    :param results: The flow rates, abandonment rates, and unmatched rates from QB optimization
-    :param lambda_i: Arrival rates for active types
-    :param lambda_j: Arrival rates for passive types
-    :param mu_i: Sojourn rates for active types
-    :param adjacency_matrix: Adjacency matrix representing the graph
-    """
+
     # Compute the shortest path distance matrix
     distance_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
 
     realization_graph = RealizationGraph()
-    printStuff = False
+
+    while not event_queue.is_empty():
+        event = event_queue.get_next_event()
+        if print_stuff: 
+            print(f"\nProcessing event: {event.event_type} for entity: {event.entity}")
+
+        if event.event_type == 'arrival':
+            if isinstance(event.entity, Driver):
+                if print_stuff: 
+                    print(f"Driver arrived at location {event.entity.location} at time {event.entity.arrival_time}.")
+                realization_graph.add_driver(event.entity)
+
+                # Get all waiting riders
+                waiting_riders = realization_graph.passive_riders  
+
+                if waiting_riders:
+                    best_rider = None
+                    best_reward = -float('inf')
+                    best_trip_distance = float('inf')
+
+                    if print_stuff:
+                        print("\n=== Possible Matches for Driver ===")
+                    for rider in waiting_riders:
+                        if rider.location in event.entity.compatibility_set:
+                            reward = rewards[event.entity.type][rider.type]
+                            trip_distance = distance_matrix[event.entity.location][rider.location]
+                            
+                            if print_stuff: 
+                                print(f"Rider at Node {rider.location}: Reward {reward}, Distance {trip_distance}")
+
+                            # Update best match if:
+                            # 1. This rider has a higher reward
+                            # 2. If same reward, this rider has a shorter trip distance
+                            if reward > best_reward or (reward == best_reward and trip_distance < best_trip_distance):
+                                best_rider = rider
+                                best_reward = reward
+                                best_trip_distance = trip_distance
+
+                    if best_rider:
+                        if print_stuff: 
+                            print(f"\n>> Selected Best Match: Rider at {best_rider.location}, "
+                                f"Reward: {best_reward}, Distance: {best_trip_distance}")
+
+                        perform_match(
+                            realization_graph,
+                            driver=event.entity,
+                            rider=best_rider,
+                            rewards=rewards,
+                            distance_matrix=distance_matrix,
+                            event_queue=event_queue,
+                        )
+
+                        if print_stuff:
+                            print(f"Driver at {event.entity.location} matched with Rider at {best_rider.location}.")
+
+            elif isinstance(event.entity, Rider):
+                if print_stuff: 
+                    print(f"Rider arrived at location {event.entity.location} at time {event.entity.arrival_time}.")
+                realization_graph.add_rider(event.entity)
+
+                # Find the closest compatible driver
+                matched_driver = realization_graph.find_driver_for_rider(event.entity, rewards, distance_matrix)
+
+                if matched_driver:
+                    if print_stuff:
+                        print(f"\n>> Rider at {event.entity.location} matched with Driver at {matched_driver.location}.")
+                    perform_match(
+                        realization_graph,
+                        driver=matched_driver,
+                        rider=event.entity,
+                        rewards=rewards,
+                        distance_matrix=distance_matrix,
+                        event_queue=event_queue,
+                    )
+
+        elif event.event_type == 'abandonment':
+            # Handle abandonment with precise state tracking
+            if isinstance(event.entity, Driver):
+                if event.entity in realization_graph.active_drivers:
+                    if print_stuff:
+                        print(f"Driver at {event.entity.location} abandoned at time {event.entity.abandonment_time}.")
+                    realization_graph.remove_driver(event.entity)
+                else:
+                    raise RuntimeError(f"Driver abandonment inconsistency: {event.entity} not in active_drivers.")
+
+            elif isinstance(event.entity, Rider):
+                if event.entity in realization_graph.passive_riders:
+                    if print_stuff:
+                        print(f"Rider at {event.entity.location} abandoned at time {event.entity.abandonment_time}.")
+                    realization_graph.remove_rider(event.entity)
+                else:
+                    raise RuntimeError(f"Rider abandonment inconsistency: {event.entity} not in passive_riders.")
+
+    print("Event processing completed.")
+    realization_graph.print_summary()
+
+
+def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix):
+    
+    # Compute the shortest path distance matrix
+    distance_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
+
+    realization_graph = RealizationGraph()
+    print_stuff = False
 
     while not event_queue.is_empty():
         event = event_queue.get_next_event()
@@ -40,37 +145,63 @@ def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, a
                 event.entity.compatibility_set = label_to_set_map.get(driver_label, [])  # Assign compatibility set
                 realization_graph.add_driver(event.entity)
 
+                if print_stuff:
+                    print(f"Driver labeled as {driver_label} at location {event.entity.location}.")
+
+                # Check for immediate matches with waiting riders
+                waiting_riders = realization_graph.get_waiting_riders_at_node(event.entity.location)
+                if waiting_riders:
+                    matched_rider = waiting_riders[0]
+                    if print_stuff:
+                        print(f"Driver at {event.entity.location} attempting to match with Rider at {matched_rider.location}.")
+                    perform_match(
+                        realization_graph,
+                        driver=event.entity,
+                        rider=matched_rider,
+                        rewards=rewards,
+                        distance_matrix=distance_matrix,
+                        event_queue=event_queue,
+                    )
+
             elif isinstance(event.entity, Rider):
-                # Riders are trivially passive, so no need to call generate_label
+                # Riders are trivially passive; assign a fixed label
                 event.entity.label = 0
                 realization_graph.add_rider(event.entity)
 
-                # Try to find a match for the rider
+                if print_stuff:
+                    print(f"Rider added at location {event.entity.location}.")
+
+                # Find the closest compatible driver
                 matched_driver = realization_graph.find_driver_for_rider(event.entity, rewards, distance_matrix)
 
                 if matched_driver:
-                    # Remove the matched rider and driver from the system
-                    realization_graph.remove_rider(event.entity)
-
-                    # Remove their abandonment events from the event queue
-                    remove_abandonment_event(event_queue, matched_driver)
-
-                    if printStuff:
-                        print(f"Matched {event.entity.type} at {event.entity.location} with {matched_driver.type}")
-                elif printStuff:
-                    print(f"No available drivers for {event.entity.type} at {event.entity.location}. Rider abandoned.")
+                    if print_stuff:
+                        print(f"Rider at {event.entity.location} attempting to match with Driver at {matched_driver.location}.")
+                    perform_match(
+                        realization_graph,
+                        driver=matched_driver,
+                        rider=event.entity,
+                        rewards=rewards,
+                        distance_matrix=distance_matrix,
+                        event_queue=event_queue,
+                    )
 
         elif event.event_type == 'abandonment':
             if isinstance(event.entity, Driver):
                 if event.entity in realization_graph.active_drivers:
                     realization_graph.remove_driver(event.entity)
-                    if printStuff:
-                        print(f"{event.entity.type} at {event.entity.location} left the system")
+                    if print_stuff:
+                        print(f"Driver at {event.entity.location} abandoned at time {event.entity.abandonment_time}.")
+                else:
+                    raise RuntimeError(f"Driver abandonment inconsistency: {event.entity} not in active_drivers.")
+
             elif isinstance(event.entity, Rider):
                 if event.entity in realization_graph.passive_riders:
                     realization_graph.remove_rider(event.entity)
-                    if printStuff:
-                        print(f"{event.entity.type} at {event.entity.location} left the system")
+                    if print_stuff:
+                        print(f"Rider at {event.entity.location} abandoned at time {event.entity.abandonment_time}.")
+                else:
+                    raise RuntimeError(f"Rider abandonment inconsistency: {event.entity} not in passive_riders.")
 
     print("Event processing completed.")
     realization_graph.print_summary()
@@ -230,20 +361,3 @@ def greedy_auto_label_nonperish_floor(event_queue, rewards, results, lambda_i, l
     print("Event processing completed.")
     realization_graph.print_summary()
 
-
-
-def remove_abandonment_event(event_queue, entity):
-    """
-    Remove the abandonment event of the entity (driver or rider) from the event queue if they are matched.
-    """
-    updated_queue = []
-    
-    while not event_queue.is_empty():
-        event = event_queue.get_next_event()
-        if event.event_type == 'abandonment' and event.entity == entity:
-            continue
-        updated_queue.append(event)
-
-    # Rebuild the event queue
-    for event in updated_queue:
-        event_queue.add_event(event)

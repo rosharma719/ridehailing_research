@@ -85,18 +85,19 @@ def solve_QB(rewards, lambda_i, lambda_j, mu_i, save_lp=True):
         # Extract solution values
         for i_idx, i in enumerate(I):
             for j_idx, j in enumerate(J):
-                results['flow_matrix'][i_idx, j_idx] = x[i, j].X
-            results['abandonment'][i] = x_a[i].X
-            results['active_unmatched'][i] = x_i[i].X
+                results['flow_matrix'][i_idx, j_idx] = round(x[i, j].X, 4)
+            results['abandonment'][i] = round(x_a[i].X, 4)
+            results['active_unmatched'][i] = round(x_i[i].X, 4)
 
         for j in J:
-            results['passive_unmatched'][j] = x_j[j].X
+            results['passive_unmatched'][j] = round(x_j[j].X, 4)
 
         # Calculate unmatched vertices
         for i in I:
-            results['unmatched'][i] = (
+            results['unmatched'][i] = round(
                 lambda_i[i] - sum(results['flow_matrix'][I.index(i), :]) 
-                - results['abandonment'][i] - results['active_unmatched'][i]
+                - results['abandonment'][i] - results['active_unmatched'][i],
+                4
             )
 
         # Print summary
