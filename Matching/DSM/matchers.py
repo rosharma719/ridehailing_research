@@ -55,7 +55,7 @@ def greedy_matcher(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adja
     print(abandonments, "abandonments")
     realization_graph.print_summary()
 
-def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix):
+def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, adjacency_matrix, explicitly_remove_riders):
     logging.info("Starting greedy_auto_label")
     
     distance_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
@@ -103,6 +103,12 @@ def greedy_auto_label(event_queue, rewards, results, lambda_i, lambda_j, mu_i, a
                         distance_matrix=distance_matrix,
                         event_queue=event_queue,
                     )
+                elif explicitly_remove_riders: 
+                    realization_graph.remove_rider(event.entity)
+                    remove_abandonment_event(event_queue, event.entity)
+                    abandonments+=1
+                    logging.info(f"Rider {event.entity.arrival_time} abandoned | Location: {event.entity.location} | Abandonment Time: {event.entity.abandonment_time}")
+
 
         elif event.event_type == 'abandonment':
             abandonments += 1

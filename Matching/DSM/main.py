@@ -29,7 +29,7 @@ Increasing distance penalty: Base reward - 2*distance
 num_nodes = 10
 simulation_time = 20
 
-rate_riders = 0.4  
+rate_riders = 0.4 
 rate_drivers = 0.5
 sojourn_rate_riders = 0.5
 sojourn_rate_drivers = 0.2 
@@ -92,7 +92,8 @@ def run_stuff(event_queue, adjacency_matrix, rewards, QB_results, topology_name)
     event_queue_6 = event_queue.clone()
 
     print("\nGREEDY AUTO-LABEL\n")
-    matchers.greedy_auto_label(event_queue_2, rewards, QB_results, lambda_i, lambda_j, mu_i, adjacency_matrix)
+    explicitly_remove_riders = True
+    matchers.greedy_auto_label(event_queue_2, rewards, QB_results, lambda_i, lambda_j, mu_i, adjacency_matrix, explicitly_remove_riders)
 
     print("\nGREEDY SOLUTION\n")
     matchers.greedy_matcher(event_queue_3, rewards, QB_results, lambda_i, lambda_j, mu_i, adjacency_matrix)
