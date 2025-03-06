@@ -10,6 +10,28 @@ import networkx as nx
 
 # paper: https://lbsresearch.london.edu/id/eprint/2475/1/ALI2%20Dynamic%20Stochastic.pdf
 
+def count_events(event_queue):
+    """
+    Count the number of arrival and abandonment events in the event queue.
+
+    :param event_queue: The event queue containing events.
+    :return: A tuple (num_arrivals, num_abandonments) representing the counts.
+    """
+    num_arrivals = 0
+    num_abandonments = 0
+
+    temp_queue = event_queue.clone()  # Clone to preserve original queue order
+
+    while not temp_queue.is_empty():
+        event = temp_queue.get_next_event()
+        if event.event_type == 'arrival':
+            num_arrivals += 1
+        elif event.event_type == 'abandonment':
+            num_abandonments += 1
+
+    return num_arrivals, num_abandonments
+
+
 def perform_match(realization_graph, driver, rider, rewards, distance_matrix, event_queue):
     """
     Perform a match between a driver and a rider, updating the realization graph, rewards,
@@ -26,23 +48,27 @@ def perform_match(realization_graph, driver, rider, rewards, distance_matrix, ev
         # Check if the driver and rider are in the system
         if driver not in realization_graph.active_drivers:
             if print_stuff: 
-
                 print(f"ERROR: Driver {driver.arrival_time:.3f} not found in active_drivers.")
                 print(f"Current active drivers: {[d.arrival_time for d in realization_graph.active_drivers]}")
             raise RuntimeError(f"Driver not found in active_drivers: {driver}")
 
         if rider not in realization_graph.passive_riders:
             if print_stuff: 
-
                 print(f"ERROR: Rider {rider.arrival_time:.3f} not found in passive_riders.")
                 print(f"Current passive riders: {[r.arrival_time for r in realization_graph.passive_riders]}")
-                
             raise RuntimeError(f"Rider not found in passive_riders: {rider}")
 
         # Calculate match statistics
-        wait_time = max(0, driver.arrival_time - rider.arrival_time)
+        wait_time = abs(driver.arrival_time - rider.arrival_time)
         trip_distance = distance_matrix[driver.location][rider.location]
         reward = rewards[driver.type][rider.type]
+
+        # Increment system-wide counters
+        realization_graph.total_wait_time += wait_time
+        realization_graph.total_trip_distance += trip_distance
+        realization_graph.total_rewards += reward
+        realization_graph.num_drivers_matched += 1
+        realization_graph.num_riders_matched += 1
 
         # Remove associated abandonment events
         remove_abandonment_event(event_queue, driver)
@@ -54,7 +80,6 @@ def perform_match(realization_graph, driver, rider, rewards, distance_matrix, ev
 
         # Log the match
         if print_stuff: 
-
             print(
                 f"Matched Driver {driver.arrival_time:.3f} at {driver.location} with "
                 f"Rider {rider.arrival_time:.3f} at {rider.location}, "
@@ -83,7 +108,7 @@ def obtain_tildex(flow_matrix, i, print_stuff = False):
     return tildex_i_j
 
 
-def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=True):
+def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuff=False):
     if is_rider:
         if print_stuff:
             print(f"Node {node} is a rider. Returning label 0.")
@@ -324,9 +349,28 @@ def divided_adjacency_to_rewards(adjacency_matrix, reward_value=8, denom_multipl
         rewards[active_type] = {}
         for j, passive_type in enumerate(passive_types):
             distance = int(dist_matrix[i][j])
-            rewards[active_type][passive_type] =  reward_value/(distance*denom_multiple) if distance != 0 else reward_value
+            rewards[active_type][passive_type] =  reward_value/((distance+1)*denom_multiple) 
             
     return rewards
+
+def increasing_distance_penalty(adjacency_matrix, reward_value=8): 
+    num_nodes = adjacency_matrix.shape[0]
+    rewards = {}
+
+    dist_matrix = shortest_path(csgraph=adjacency_matrix, directed=False, unweighted=True)
+
+
+    active_types = [f"Active Driver Node {i}" for i in range(num_nodes)]
+    passive_types = [f"Passive Rider Node {i}" for i in range(num_nodes)]
+
+
+    for i, active_type in enumerate(active_types):
+        rewards[active_type] = {}
+        for j, passive_type in enumerate(passive_types):
+            distance = int(dist_matrix[i][j])
+            rewards[active_type][passive_type] = reward_value-2*distance  # Subtract 2*distance from reward
+            
+    return rewards            
 
 
 class RealizationGraph: 
@@ -380,9 +424,47 @@ class RealizationGraph:
             print(f"Rider {rider.arrival_time:.3f} removed at location {rider.location}.")
         self.passive_riders.remove(rider)
 
+    def find_rider_for_driver(self, driver, rewards, distance_matrix):
+        """
+        Find the most compatible rider for a driver based on compatibility sets and rewards.
+        Searches across all waiting riders in the system.
+
+        :param driver: The arriving driver.
+        :param rewards: The reward matrix.
+        :param distance_matrix: The shortest path distance matrix between all nodes.
+        :return: The matched rider, or None if no match is found or reward is ≤ 0.
+        """
+        if self.print:
+            print(f"Current waiting riders: {[r.arrival_time for r in self.passive_riders]}")
+
+        if not self.passive_riders:
+            return None
+
+        matched_rider = None
+        max_reward = -float('inf')  # Start with the lowest possible reward
+        best_trip_distance = float('inf')  # For tie-breaking based on trip distance
+
+        for rider in self.passive_riders:
+            # Check if the rider's location is in the driver's compatibility set
+            if rider.location in driver.compatibility_set:
+                # Calculate reward and trip distance
+                reward = rewards[driver.type][rider.type]
+                trip_distance = distance_matrix[driver.location][rider.location]
+
+                # Skip if reward is non-positive
+                if reward <= 0:
+                    continue
+
+                # Update the matched rider if this one is better
+                if reward > max_reward or (reward == max_reward and trip_distance < best_trip_distance):
+                    matched_rider = rider
+                    max_reward = reward
+                    best_trip_distance = trip_distance
+
+        return matched_rider if max_reward > 0 else None
+
 
     def find_driver_for_rider(self, rider, rewards, distance_matrix):
-        print_stuff = False
         """
         Find the most compatible driver for a rider based on compatibility sets and rewards.
         Searches across all drivers in the system.
@@ -390,11 +472,10 @@ class RealizationGraph:
         :param rider: The arriving rider.
         :param rewards: The reward matrix.
         :param distance_matrix: The shortest path distance matrix between all nodes.
-        :return: The matched driver, or None if no match is found.
+        :return: The matched driver, or None if no match is found or reward is ≤ 0.
         """
         if self.print:
             print(f"Current active drivers: {[d.arrival_time for d in self.active_drivers]}")
-    
 
         if not self.active_drivers:
             return None
@@ -408,7 +489,11 @@ class RealizationGraph:
             if rider.location in driver.compatibility_set:
                 # Calculate reward and trip distance
                 reward = rewards[driver.type][rider.type]
-                trip_distance = distance_matrix[driver.location][rider.location]
+                trip_distance = abs(driver.location - rider.location)  # Fallback
+
+                # Skip if reward is non-positive
+                if reward <= 0:
+                    continue
 
                 # Update the matched driver if this one is better
                 if reward > max_reward or (reward == max_reward and trip_distance < best_trip_distance):
@@ -416,29 +501,10 @@ class RealizationGraph:
                     max_reward = reward
                     best_trip_distance = trip_distance
 
-        # If a match was found, update system statistics and remove the driver
-        if matched_driver:
-            wait_time = rider.arrival_time - matched_driver.arrival_time
+        return matched_driver if max_reward > 0 else None
 
-            self.total_wait_time += wait_time
-            self.total_trip_distance += best_trip_distance
-            self.total_rewards += max_reward  # Add the reward for the match
-            self.num_drivers_matched += 1
-            self.num_riders_matched += 1
-
-            if self.print:
-                print(
-                    f"Found match for Driver {matched_driver.arrival_time:.3f} at {matched_driver.location} "
-                    f"with Rider {rider.arrival_time:.3f} at {rider.location}, "
-                    f"Reward: {max_reward:.3f}, Trip Distance: {best_trip_distance:.3f}, Wait Time: {wait_time:.3f}."
-                )
-
-            return matched_driver
-
-        return None
 
     
-
     def print_summary(self):
         if self.num_riders_matched > 0:
             average_trip_distance = self.total_trip_distance / self.num_riders_matched
@@ -457,7 +523,7 @@ class RealizationGraph:
         print(f"Total Rewards: {self.total_rewards:.2f}")
         print(f"Average Reward per Transaction: {average_reward:.2f}")
         print(f"Average Trip Distance: {average_trip_distance:.2f} units")
-        print(f"Average Wait Time: {average_wait_time:.2f} units")
+        print(f"Average Wait Time: {average_wait_time:.2f} units\n")
         
     def get_waiting_counts_by_node(self):
         """
@@ -485,3 +551,5 @@ class RealizationGraph:
         Returns a list of all drivers waiting at a specific node.
         """
         return [driver for driver in self.active_drivers if driver.location == node]
+
+  

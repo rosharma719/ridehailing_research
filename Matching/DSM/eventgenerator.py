@@ -100,55 +100,59 @@ class EventQueue:
 
 def generate_events(event_queue, rate_riders, rate_drivers, sojourn_rate_riders, sojourn_rate_drivers, num_nodes, simulation_time):
     """
-    Generate events (arrival and abandonment) for each node separately to support scaling by node.
-    
-    :param event_queue: The event queue where events are stored.
-    :param rate_riders: The arrival rate of riders (global rate).
-    :param rate_drivers: The arrival rate of drivers (global rate).
-    :param sojourn_rate_riders: The sojourn time rate for riders.
-    :param sojourn_rate_drivers: The sojourn time rate for drivers.
-    :param num_nodes: Number of nodes in the system.
-    :param simulation_time: Total simulation time.
+    Generate events (arrival and abandonment) for each node separately.
+    Ensures every arrival has a corresponding abandonment event tracked.
     """
-    
     current_time = 0
-
-    # Generate arrivals for each node separately
+    count_missed = 0  # Count abandonments after simulation end
+    expected_abandonments = 0  # Count all potential abandonments
+    total_arrivals = 0  # Track total arrivals
+    
     for node in range(num_nodes):
         node_time = 0  # Track the time for this node
-        
         while node_time < simulation_time:
-            # Generate the next rider arrival time for this node
+            # Generate the next rider arrival time
             next_rider_time = round(node_time + np.random.exponential(1 / rate_riders), 6)
             if next_rider_time < simulation_time:
                 sojourn_time = round(np.random.exponential(1 / sojourn_rate_riders), 6)
-
                 rider = Rider(next_rider_time, node, sojourn_time)
                 event_queue.add_event(Event(next_rider_time, 'arrival', rider))
-
-                # Add the abandonment event if it happens within the simulation time
+                total_arrivals += 1  # Count every arrival
+                
+                # Always track abandonment events, whether within simulation time or not
                 abandonment_time = rider.abandonment_time
+                expected_abandonments += 1  # Count every potential abandonment
+                
                 if abandonment_time < simulation_time:
                     event_queue.add_event(Event(abandonment_time, 'abandonment', rider))
-
-            # Generate the next driver arrival time for this node
+                else:
+                    count_missed += 1  # Count abandonments after simulation end
+            
+            # Generate the next driver arrival time
             next_driver_time = round(node_time + np.random.exponential(1 / rate_drivers), 6)
-
             if next_driver_time < simulation_time:
                 sojourn_time = round(np.random.exponential(1 / sojourn_rate_drivers), 6)
                 driver = Driver(next_driver_time, node, sojourn_time, num_nodes)
                 event_queue.add_event(Event(next_driver_time, 'arrival', driver))
-
-                # Add the abandonment event if it happens within the simulation time
+                total_arrivals += 1  # Count every arrival
+                
+                # Always track abandonment events, whether within simulation time or not
                 abandonment_time = driver.abandonment_time
+                expected_abandonments += 1  # Count every potential abandonment
+                
                 if abandonment_time < simulation_time:
                     event_queue.add_event(Event(abandonment_time, 'abandonment', driver))
-
-            # Move forward to the next event time for this node
+                else:
+                    count_missed += 1  # Count abandonments after simulation end
+            
             node_time = min(next_rider_time, next_driver_time)
             node_time = min(node_time, simulation_time)
-
-
+    
+    print(f"\nTotal Arrivals: {total_arrivals}")
+    print(f"Total Abandonments: {expected_abandonments}")
+    print(f"Abandonments Within Timeline: {expected_abandonments - count_missed}")
+    print(f"Abandonments Outside Timeline: {count_missed}")
+    
 def remove_abandonment_event(event_queue, entity):
     """
     Remove the abandonment event of the entity (driver or rider) from the event queue if they are matched.

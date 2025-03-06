@@ -49,7 +49,7 @@ def solve_offline_optimal_with_markov(event_queue, rewards):
             driver = drivers[i]
             rider = riders[j]
             reward = reward_matrix[i, j]
-            wait_time = max(0, driver.arrival_time - rider.arrival_time)
+            wait_time = abs(driver.arrival_time - rider.arrival_time)
             trip_distance = abs(driver.location - rider.location)  # Assuming Manhattan distance
 
             total_reward += reward
@@ -72,5 +72,5 @@ def solve_offline_optimal_with_markov(event_queue, rewards):
     print(f"Total Rewards: {total_reward:.2f}")
     print(f"Average Reward per Transaction: {avg_reward:.2f}")
     print(f"Average Trip Distance: {avg_trip_distance:.2f} units")
-    print(f"Average Wait Time: {avg_wait_time:.2f} units")
+    print(f"Average Wait Time: {avg_wait_time:.2f} units\n\n")
 
