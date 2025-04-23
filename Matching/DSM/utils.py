@@ -10,6 +10,49 @@ import networkx as nx
 
 # paper: https://lbsresearch.london.edu/id/eprint/2475/1/ALI2%20Dynamic%20Stochastic.pdf
 
+def mean(x): return sum(x)/len(x) if x else 0.0
+
+def list_to_named_dict(rate_list, prefix):
+    """
+    Converts a list of rates into a dictionary with keys like 'Active Driver Node 0'.
+
+    Parameters:
+    - rate_list: list of numerical values
+    - prefix: string to prepend to each node (e.g., 'Active Driver Node', 'Passive Rider Node')
+
+    Returns:
+    - dict mapping names to values
+    """
+    return {f"{prefix} {i}": rate for i, rate in enumerate(rate_list)}
+
+
+def generate_param_normal_distribution(node_names, mean, std_dev, min_val=0.01, max_val=1.0, decimals=2, seed=None):
+    """
+    Generate a dictionary of mu_i values (abandonment rates) normally distributed,
+    bounded and rounded to the nearest specified decimal.
+
+    Parameters:
+    - node_names: list of string keys for the nodes (e.g., ["Active Driver Node 0", ...])
+    - mean: mean of the normal distribution
+    - std_dev: standard deviation of the normal distribution
+    - min_val: minimum value to clip to (default 0.01)
+    - max_val: maximum value to clip to (default 1.0)
+    - decimals: number of decimal places to round to (default 2)
+    - seed: random seed for reproducibility (optional)
+
+    Returns:
+    - Dictionary: {node_name: mu_i_value}
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    mu_values = np.random.normal(loc=mean, scale=std_dev, size=len(node_names))
+    mu_values = np.clip(mu_values, min_val, max_val)
+    mu_values = np.round(mu_values, decimals)
+
+    return {name: mu for name, mu in zip(node_names, mu_values)}
+
+
 def count_events(event_queue):
     """
     Count the number of arrival and abandonment events in the event queue.
@@ -124,96 +167,93 @@ def generate_label(is_rider, node, results, lambda_i, lambda_j, mu_i, print_stuf
     tildex_i_j = flow_matrix[node, :]
     S_i = [j for j in range(num_riders) if tildex_i_j[j] > 1e-8]
 
-    if print_stuff:
-        print(f"Node {node} Compatibility Set S_i: {S_i}")
-        print(f"Flows for Node {node}: {tildex_i_j}")
-
     if not S_i:
         if print_stuff:
             print(f"No compatibility set found for Node {node}. Returning -1.")
-        return -1, {}   
+        return -1, {}
 
     driver_name = f"Active Driver Node {node}"
     sojourn_rate = mu_i[driver_name]
 
-    # Calculate λ_p values for all riders in the compatibility set
-    lambdap = {j: passive_unmatched[f"Passive Rider Node {j}"] + sum(flow_matrix[:, j]) for j in S_i}
+    # Compute λ^p_j for each rider in S_i
+    lambdap = {
+        j: passive_unmatched[f"Passive Rider Node {j}"] + sum(flow_matrix[:, j])
+        for j in S_i
+    }
+
+    # === Sort S_i and corresponding flows ===
+    sort_key = lambda j: (tildex_i_j[j] / lambdap[j], random.random())
+    S_i_sorted = sorted(S_i, key=sort_key, reverse=True)
+    sorted_flows = np.array([tildex_i_j[j] for j in S_i_sorted])
+
     if print_stuff:
-        print(f"Lambda_p values for Node {node}: {lambdap}")
+        print(f"Sorted Compatibility Set S_i: {S_i_sorted}")
+        print(f"Sorted Flows: {sorted_flows}")
 
-    # Sort S_i by priority: tildex / lambdap
-    S_i.sort(key=lambda j: (tildex_i_j[j] / lambdap[j], random.random()), reverse=True)
+    # === Initialize hatlambda_il ===
+    hatlambda_il = np.zeros(len(S_i_sorted))
+    sum_lambdap_Si = sum(lambdap[j] for j in S_i_sorted)
 
-    if print_stuff:
-        print(f"Sorted Compatibility Set S_i for Node {node}: {S_i}")
-
-    # Initialize hatlambda_il
-    hatlambda_il = np.zeros(len(S_i))
-    sum_lambdap_Si = sum(lambdap[j] for j in S_i)
-
-    # Base case: Compute hatlambda_il for l = |S_i| (Equation 24)
-    L = len(S_i) - 1
-    j_L = S_i[L]
+    # === Base case ===
+    L = len(S_i_sorted) - 1
+    j_L = S_i_sorted[L]
     numerator = sojourn_rate + sum_lambdap_Si
     denominator = lambdap[j_L]
-    hatlambda_il[L] = (numerator / denominator) * tildex_i_j[j_L]
+    hatlambda_il[L] = (numerator / denominator) * sorted_flows[L]
 
     if print_stuff:
         print(f"Base Case (L = {L}, j_L = {j_L}):")
         print(f"  Numerator: {numerator}")
         print(f"  Denominator: {denominator}")
-        print(f"Tilde xi, sigma L: {tildex_i_j[j_L]}")
+        print(f"  Flow: {sorted_flows[L]}")
         print(f"  Hatlambda_il[{L}]: {hatlambda_il[L]}")
 
-    # Recursive computation: Compute hatlambda_il for l ≤ |S_i| - 1 (Equation 25)
+    # === Recursive case ===
     for idx in range(L - 1, -1, -1):
-        j_l = S_i[idx]
-        numerator = sojourn_rate + sum(lambdap[j] for j in S_i[idx:])
+        j_l = S_i_sorted[idx]
+        numerator = sojourn_rate + sum(lambdap[j] for j in S_i_sorted[idx:])
         denominator = lambdap[j_l]
+        current_flow = sorted_flows[idx]
+        next_flow = sorted_flows[idx + 1]
 
-        # Obtain the flow for the NEXT index using the provided getter
-        previous_flow = obtain_tildex(flow_matrix, node)[S_i[idx + 1]] if idx < L else 0.0
-        current_flow = obtain_tildex(flow_matrix, node)[j_l]
-
-        # Compute hatlambda_il using the flow directly
-        hatlambda_il[idx] = (numerator / denominator) * (current_flow - previous_flow)
+        hatlambda_il[idx] = (numerator / denominator) * (current_flow - next_flow)
 
         if print_stuff:
             print(f"Recursive Case (idx = {idx}, j_l = {j_l}):")
             print(f"  Numerator: {numerator}")
             print(f"  Denominator: {denominator}")
             print(f"  Current flow: {current_flow}")
-            print(f"  Residual Flow: {previous_flow}")
+            print(f"  Next flow: {next_flow}")
             print(f"  Hatlambda_il[{idx}]: {hatlambda_il[idx]}")
 
-    # Normalize probabilities (Ensures ∑ hatlambda_il = 1)
+    # === Clean and Normalize ===
+    hatlambda_il = np.maximum(hatlambda_il, 0)
     sum_hatlambda = np.sum(hatlambda_il)
-    normalized_hatlambda_il = hatlambda_il / sum_hatlambda 
+    if sum_hatlambda == 0:
+        return -1, {}
+
+    normalized_hatlambda_il = hatlambda_il / sum_hatlambda
 
     if print_stuff:
-        print(f"Normalized Hatlambda_il for Node {node}: {normalized_hatlambda_il}")
+        print(f"Normalized Hatlambda_il: {normalized_hatlambda_il}")
 
-    # Choose a label
-    chosen_label_index = np.random.choice(range(len(S_i)), p=normalized_hatlambda_il)
-    chosen_label = S_i[chosen_label_index]  # Ensure correct mapping
+    # === Sample a label ===
+    chosen_label_index = np.random.choice(range(len(S_i_sorted)), p=normalized_hatlambda_il)
+    chosen_label = S_i_sorted[chosen_label_index]
 
     if print_stuff:
-        print(f"Chosen Label for Node {node}: {chosen_label}")
+        print(f"Chosen Label: {chosen_label}")
 
-    # **Corrected Compatibility Mapping**
-    label_to_set_map = {}
-    for idx in range(len(S_i)):
-        label_to_set_map[S_i[idx]] = S_i[: idx + 1]  # Start with full set and remove elements stepwise
-
+    # === Build label → compatibility set map ===
+    label_to_set_map = {
+        S_i_sorted[idx]: S_i_sorted[: idx + 1] for idx in range(len(S_i_sorted))
+    }
     label_to_set_map[-1] = []
 
     if print_stuff:
         print("LABEL TO SET MAP")
         print(label_to_set_map)
-
-    # Print the label's compatibility set
-    if print_stuff:
-        print(f"Label {chosen_label}'s Compatibility Set: {label_to_set_map.get(chosen_label, [])}")
+        print(f"Label {chosen_label}'s Compatibility Set: {label_to_set_map[chosen_label]}")
 
     return chosen_label, label_to_set_map
 
@@ -370,6 +410,7 @@ def increasing_distance_penalty(adjacency_matrix, reward_value=8):
             distance = int(dist_matrix[i][j])
             rewards[active_type][passive_type] = reward_value-2*distance  # Subtract 2*distance from reward
             
+    print("REWARDS", rewards)
     return rewards            
 
 

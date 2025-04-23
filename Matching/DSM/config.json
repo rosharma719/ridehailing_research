@@ -1,0 +1,20 @@
+{
+    "use_custom_matrices": true,
+    "custom_adjacency_path": "../custom_data/adjacency.npy",
+    "custom_reward_path": "../custom_data/reward.json",
+    "topology_mode": "ring",
+    "reward_structure": "increasing_distance_penalty",
+    "use_custom_rates": true,
+    "custom_rate_path": "../custom_data/arrival_sojourn.json",
+    "num_nodes": 3,
+    "simulation_time": 10,
+    "rate_riders": 0.5,
+    "rate_drivers": 0.5,
+    "sojourn_rate_riders": 5,
+    "sojourn_rate_drivers": 0.2,
+    "distance_penalty": 0.5,
+    "grid_denom": 1,
+    "ring_denom": 1,
+    "thickness_floor": 1
+  }
+  

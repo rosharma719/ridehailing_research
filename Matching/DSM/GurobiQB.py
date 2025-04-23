@@ -19,20 +19,6 @@ def solve_QB(rewards, lambda_i, lambda_j, mu_i, save_lp=True):
     I = list(rewards.keys())  # Active types
     J = list(rewards[I[0]].keys())  # Passive types
 
-    # Debug: Print rewards matrix
-    print("\n=== Debug: Rewards Matrix ===")
-    for i in I:
-        for j in J:
-            print(f"rewards[{i}][{j}] = {rewards[i][j]}")
-    
-    # Debug: Print lambda_i and lambda_j
-    print("\n=== Debug: Arrival Rates ===")
-    print("Active types (lambda_i):", lambda_i)
-    print("Passive types (lambda_j):", lambda_j)
-    
-    # Debug: Print abandonment rates
-    print("\n=== Debug: Abandonment Rates ===")
-    print("Active types (mu_i):", mu_i)
 
     # Initialize Gurobi model for QB
     model = Model("QB_Model")
@@ -42,13 +28,6 @@ def solve_QB(rewards, lambda_i, lambda_j, mu_i, save_lp=True):
     x_i = model.addVars(I, name="x_i", lb=0, vtype=GRB.CONTINUOUS)  # Buffer for active unmatched vertices x_i
     x_j = model.addVars(J, name="x_j", lb=0, vtype=GRB.CONTINUOUS)  # Buffer for passive unmatched vertices x_j
     x_a = model.addVars(I, name="x_a", lb=0, vtype=GRB.CONTINUOUS)  # Abandonment variables x_{i,a}
-
-    # Debug: Print created decision variables
-    print("\n=== Debug: Created Decision Variables ===")
-    print("Flow variables x[i,j]:")
-    for i in I:
-        for j in J:
-            print(f"x[{i},{j}] exists:", x[i, j] in model.getVars())
 
     # Objective: Maximize total reward
     model.setObjective(
@@ -93,13 +72,6 @@ def solve_QB(rewards, lambda_i, lambda_j, mu_i, save_lp=True):
 
     # Optimize
     model.optimize()
-
-    # Debug: Print optimized decision variables
-    print("\n=== Debug: Optimized Flow Variables ===")
-    if model.status == GRB.OPTIMAL:
-        for i in I:
-            for j in J:
-                print(f"x[{i},{j}] = {x[i, j].X}")
     
     # Process results
     results = {
