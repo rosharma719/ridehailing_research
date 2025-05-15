@@ -1,9 +1,9 @@
 {
-    "Active Driver Node 0": { "arrival": 0.8, "sojourn": 6 },
-    "Active Driver Node 1": { "arrival": 0.5, "sojourn": 2 },
-    "Active Driver Node 2": { "arrival": 0.2, "sojourn": 0.3 },
-    "Passive Rider Node 0": { "arrival": 0.8, "sojourn": 6 },
-    "Passive Rider Node 1": { "arrival": 0.5, "sojourn": 2 },
-    "Passive Rider Node 2": { "arrival": 0.2, "sojourn": 0.3 }
+    "Active Driver Node 0": { "arrival": 0.2, "sojourn": 1 }, 
+    "Active Driver Node 1": { "arrival": 0.5, "sojourn": 0.5 },
+    "Active Driver Node 2": { "arrival": 0.1, "sojourn": 0.3 },
+    "Passive Rider Node 0": { "arrival": 0.8, "sojourn": 0.5 },
+    "Passive Rider Node 1": { "arrival": 0.1, "sojourn": 0.5 },
+    "Passive Rider Node 2": { "arrival": 0.1, "sojourn": 1 }
   }
   

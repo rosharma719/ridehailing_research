@@ -83,9 +83,11 @@ class EventQueue:
     
     def clone(self):
         new_queue = EventQueue()
-        new_queue.queue = list(self.queue)  # Copy the heap
-        heapq.heapify(new_queue.queue)  # Re-heapify the copied queue
+        import copy
+        new_queue.queue = copy.deepcopy(self.queue)
+        heapq.heapify(new_queue.queue)
         return new_queue
+
     
     def print_queue(self):
             """

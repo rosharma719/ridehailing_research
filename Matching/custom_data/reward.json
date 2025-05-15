@@ -1,18 +1,18 @@
 {
     "Active Driver Node 0": {
-      "Passive Rider Node 0": 0,
-      "Passive Rider Node 1": 6,
-      "Passive Rider Node 2": 0
+      "Passive Rider Node 0": 2,
+      "Passive Rider Node 1": 2,
+      "Passive Rider Node 2": 2
     },
     "Active Driver Node 1": {
-      "Passive Rider Node 0": 6,
-      "Passive Rider Node 1": 0,
-      "Passive Rider Node 2": 10
+      "Passive Rider Node 0": 2,
+      "Passive Rider Node 1": 2,
+      "Passive Rider Node 2": 100
     },
     "Active Driver Node 2": {
-      "Passive Rider Node 0": 0,
-      "Passive Rider Node 1": 10,
-      "Passive Rider Node 2": 0
+      "Passive Rider Node 0": 2,
+      "Passive Rider Node 1": 2,
+      "Passive Rider Node 2": 2
     }
   }
   
